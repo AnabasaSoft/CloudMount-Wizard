@@ -1,3 +1,13 @@
+/*
+ * CloudMount Wizard - GUI for Rclone on Linux
+ * Copyright (C) 2024 Anabasa Software
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
+
 package main
 
 import (
@@ -525,36 +535,53 @@ func ShowCloudSelection(w fyne.Window) {
 		d.Show()
 	}
 
-	// 3. CONFIGURADOR MEGA - REDIMENSIONADO Y CON AVISO
+	// 3. CONFIGURADOR MEGA - CON SOPORTE 2FA
 	configureMega := func() {
 		entryName := widget.NewEntry()
 		entryUser := widget.NewEntry()
 		entryUser.SetPlaceHolder("email@mega.nz")
 		entryPass := widget.NewPasswordEntry()
 
-		// Aviso importante para el usuario
-		lblWarning := widget.NewLabel("Importante: Rclone NO soporta 2FA en Mega.\nDebes desactivar la autenticación en dos pasos.")
-		lblWarning.TextStyle = fyne.TextStyle{Italic: true}
-		lblWarning.Alignment = fyne.TextAlignCenter
+		// Nuevo campo para el código 2FA
+		entry2FA := widget.NewEntry()
+		entry2FA.SetPlaceHolder("Opcional: Solo si tienes 2FA activado")
 
 		items := []*widget.FormItem{
 			widget.NewFormItem("Nombre Conexión:", entryName),
 			widget.NewFormItem("Email Mega:", entryUser),
 			widget.NewFormItem("Contraseña:", entryPass),
-			widget.NewFormItem("", lblWarning), // <--- AVISO AÑADIDO
+			widget.NewFormItem("Código 2FA (6 dígitos):", entry2FA), // Añadimos el campo al formulario
 		}
 
 		// Usamos NewForm
 		d := dialog.NewForm("Configurar Mega", "Guardar", "Cancelar", items, func(confirm bool) {
 			if confirm {
 				if entryName.Text == "" || entryUser.Text == "" || entryPass.Text == "" {
-					dialog.ShowError(apiError("Todos los campos son obligatorios"), w)
+					dialog.ShowError(apiError("Nombre, usuario y contraseña son obligatorios"), w)
 					return
 				}
-				opts := map[string]string{"user": entryUser.Text, "pass": entryPass.Text}
 
-				w.SetContent(container.NewVBox(layout.NewSpacer(), widget.NewLabel("Conectando con Mega..."), widget.NewProgressBarInfinite(), layout.NewSpacer()))
+				// Preparamos los parámetros para Rclone
+				opts := map[string]string{
+					"user": entryUser.Text,
+					"pass": entryPass.Text,
+				}
+
+				// SI el usuario escribió un código 2FA, lo añadimos a los parámetros.
+				// Rclone usa la clave "2fa" durante la configuración para generar el token.
+				if entry2FA.Text != "" {
+					opts["2fa"] = entry2FA.Text
+				}
+
+				w.SetContent(container.NewVBox(
+					layout.NewSpacer(),
+							       widget.NewLabel("Conectando con Mega..."),
+							       widget.NewProgressBarInfinite(),
+							       layout.NewSpacer(),
+				))
+
 				go func() {
+					// Esto ejecutará: rclone config create NOMBRE mega user=... pass=... 2fa=CODIGO
 					err := rclone.CreateConfigWithOpts(entryName.Text, "mega", opts)
 					if err != nil {
 						configState.Set("ERROR:" + err.Error())
@@ -565,8 +592,7 @@ func ShowCloudSelection(w fyne.Window) {
 			}
 		}, w)
 
-		// Hacemos el diálogo más ancho (500px)
-		d.Resize(fyne.NewSize(500, 350)) // Un poco más alto para el aviso
+		d.Resize(fyne.NewSize(500, 350))
 		d.Show()
 	}
 
