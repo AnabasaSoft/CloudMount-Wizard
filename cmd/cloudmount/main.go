@@ -32,6 +32,11 @@ func main() {
 	myApp.SetIcon(resourceIconPng)
 	myApp.Settings().SetTheme(&myTheme{})
 
+	// --- NUEVO: INICIO PERSISTENTE ---
+	// Iniciamos el servidor de Mega desacoplado para que sobreviva al cierre de la app
+	go mega.EnsureDaemon()
+	// ---------------------------------
+
 	myWindow := myApp.NewWindow("CloudMount Wizard")
 	myWindow.Resize(fyne.NewSize(850, 650))
 
@@ -92,7 +97,9 @@ func ShowDashboard(w fyne.Window) {
 		// Detectar si es Mega
 		isMega := (name == "Mega")
 		displayName := name
-		if isMega { displayName = "MEGA (Oficial)" }
+		if isMega {
+			displayName = "MEGA (Oficial)"
+		}
 
 		// ESTADO INTELIGENTE
 		statusTxt := "OFF"
@@ -109,7 +116,8 @@ func ShowDashboard(w fyne.Window) {
 		}
 
 		// QUOTA
-		quotaTxt := binding.NewString(); quotaTxt.Set("...")
+		quotaTxt := binding.NewString()
+		quotaTxt.Set("...")
 		quotaVal := binding.NewFloat()
 
 		// Calculamos espacio si está montado O conectado
@@ -130,7 +138,7 @@ func ShowDashboard(w fyne.Window) {
 				if err == nil && q.Total > 0 {
 					fyne.Do(func() {
 						quotaTxt.Set(fmt.Sprintf("%s / %s", rclone.FormatBytes(q.Used), rclone.FormatBytes(q.Total)))
-						quotaVal.Set(float64(q.Used)/float64(q.Total))
+						quotaVal.Set(float64(q.Used) / float64(q.Total))
 					})
 				} else {
 					fyne.Do(func() { quotaTxt.Set("Espacio: Desconocido") })
@@ -141,7 +149,11 @@ func ShowDashboard(w fyne.Window) {
 		// BOTONES
 		btnMount := widget.NewButton("Montar Disco", func() {
 			go func() {
-				if isMega { mega.GetWebDAVURL() }
+				if isMega {
+					// --- NUEVO: Aseguramos que el servidor persista ---
+					mega.EnsureDaemon()
+					mega.GetWebDAVURL()
+				}
 				rclone.MountRemote(name)
 				fyne.Do(func() { ShowDashboard(w) })
 			}()
@@ -162,9 +174,14 @@ func ShowDashboard(w fyne.Window) {
 
 		// AJUSTES
 		btnSettings := widget.NewButtonWithIcon("", theme.SettingsIcon(), func() {
-			checkRead := widget.NewCheck("Solo Lectura", nil); checkRead.Checked = opts.ReadOnly
-			entryCache := widget.NewEntry(); entryCache.Text = opts.CacheSize; entryCache.PlaceHolder = "Ej: 10G"
-			entryBw := widget.NewEntry(); entryBw.Text = opts.BwLimit; entryBw.PlaceHolder = "Ej: 2M"
+			checkRead := widget.NewCheck("Solo Lectura", nil)
+			checkRead.Checked = opts.ReadOnly
+			entryCache := widget.NewEntry()
+			entryCache.Text = opts.CacheSize
+			entryCache.PlaceHolder = "Ej: 10G"
+			entryBw := widget.NewEntry()
+			entryBw.Text = opts.BwLimit
+			entryBw.PlaceHolder = "Ej: 2M"
 
 			items := []*widget.FormItem{
 				widget.NewFormItem("Solo Lectura:", checkRead),
@@ -179,7 +196,10 @@ func ShowDashboard(w fyne.Window) {
 						CacheSize: entryCache.Text,
 						BwLimit:   entryBw.Text,
 					})
-					if isMounted { rclone.UnmountRemote(name); rclone.MountRemote(name) }
+					if isMounted {
+						rclone.UnmountRemote(name)
+						rclone.MountRemote(name)
+					}
 					ShowDashboard(w)
 				}
 			}, w)
@@ -189,12 +209,16 @@ func ShowDashboard(w fyne.Window) {
 
 		// BORRAR / LOGOUT
 		btnDelete := widget.NewButtonWithIcon("", theme.DeleteIcon(), func() {
-			msg := "¿Eliminar "+displayName+"?"
-			if isMega { msg = "¿Cerrar sesión y eliminar Mega?" }
+			msg := "¿Eliminar " + displayName + "?"
+			if isMega {
+				msg = "¿Cerrar sesión y eliminar Mega?"
+			}
 			dialog.ShowConfirm("Borrar", msg, func(ok bool) {
 				if ok {
 					go func() {
-						if isMega { mega.Logout() }
+						if isMega {
+							mega.Logout()
+						}
 						rclone.DeleteRemote(name)
 						fyne.Do(func() { ShowDashboard(w) })
 					}()
@@ -238,7 +262,14 @@ func ShowCloudSelection(w fyne.Window) {
 		if strings.HasPrefix(val, "DONE:") {
 			remoteName := val[5:]
 			dialog.ShowConfirm("Éxito", "Cuenta '"+remoteName+"' guardada.\n¿Montar ahora?", func(ok bool) {
-				if ok { go func() { rclone.MountRemote(remoteName); fyne.Do(func() { ShowDashboard(w) }) }() } else { ShowDashboard(w) }
+				if ok {
+					go func() {
+						rclone.MountRemote(remoteName)
+						fyne.Do(func() { ShowDashboard(w) })
+					}()
+				} else {
+					ShowDashboard(w)
+				}
 			}, w)
 		} else if strings.HasPrefix(val, "ERROR:") {
 			fyne.Do(func() { dialog.ShowError(apiError(val[6:]), w) })
@@ -254,7 +285,13 @@ func ShowCloudSelection(w fyne.Window) {
 					go func() {
 						err := system.InstallMegaCmd()
 						fyne.Do(func() {
-							if err != nil { ShowCloudSelection(w); dialog.ShowError(err, w) } else { ShowCloudSelection(w); dialog.ShowInformation("Instalado", "Vuelve a conectar.", w) }
+							if err != nil {
+								ShowCloudSelection(w)
+								dialog.ShowError(err, w)
+							} else {
+								ShowCloudSelection(w)
+								dialog.ShowInformation("Instalado", "Vuelve a conectar.", w)
+							}
 						})
 					}()
 				}
@@ -262,9 +299,12 @@ func ShowCloudSelection(w fyne.Window) {
 			return
 		}
 
-		entryUser := widget.NewEntry(); entryUser.PlaceHolder = "Email"
-		entryPass := widget.NewPasswordEntry(); entryPass.PlaceHolder = "Contraseña"
-		entry2FA := widget.NewEntry(); entry2FA.PlaceHolder = "Código 2FA"
+		entryUser := widget.NewEntry()
+		entryUser.PlaceHolder = "Email"
+		entryPass := widget.NewPasswordEntry()
+		entryPass.PlaceHolder = "Contraseña"
+		entry2FA := widget.NewEntry()
+		entry2FA.PlaceHolder = "Código 2FA"
 
 		d := dialog.NewForm("Conectar Mega", "Login", "Cancelar", []*widget.FormItem{
 			widget.NewFormItem("Email:", entryUser), widget.NewFormItem("Pass:", entryPass), widget.NewFormItem("2FA:", entry2FA),
@@ -274,12 +314,18 @@ func ShowCloudSelection(w fyne.Window) {
 				go func() {
 					err := mega.Login(strings.TrimSpace(entryUser.Text), strings.TrimSpace(entryPass.Text), strings.TrimSpace(entry2FA.Text))
 					if err != nil {
-						fyne.Do(func() { ShowCloudSelection(w); dialog.ShowError(fmt.Errorf("Login falló: %v", err), w) })
+						fyne.Do(func() {
+							ShowCloudSelection(w)
+							dialog.ShowError(fmt.Errorf("Login falló: %v", err), w)
+						})
 						return
 					}
 					webdavURL, errUrl := mega.GetWebDAVURL()
 					if errUrl != nil {
-						fyne.Do(func() { ShowCloudSelection(w); dialog.ShowError(fmt.Errorf("Error puente: %v", errUrl), w) })
+						fyne.Do(func() {
+							ShowCloudSelection(w)
+							dialog.ShowError(fmt.Errorf("Error puente: %v", errUrl), w)
+						})
 						return
 					}
 					opts := map[string]string{"url": webdavURL, "vendor": "other", "user": strings.TrimSpace(entryUser.Text), "pass": strings.TrimSpace(entryPass.Text)}
@@ -292,17 +338,23 @@ func ShowCloudSelection(w fyne.Window) {
 				}()
 			}
 		}, w)
-		d.Resize(fyne.NewSize(450, 300)); d.Show()
+		d.Resize(fyne.NewSize(450, 300))
+		d.Show()
 	}
 
 	// 2. OAUTH
 	configureOAuth := func(name, provider string) {
-		input := widget.NewEntry(); input.PlaceHolder = "Nombre"
+		input := widget.NewEntry()
+		input.PlaceHolder = "Nombre"
 		dialog.ShowCustomConfirm("Configurar "+name, "Ok", "Cancel", input, func(ok bool) {
 			if ok && input.Text != "" {
 				w.SetContent(widget.NewLabel("Autorizando..."))
 				go func() {
-					if err := rclone.CreateConfig(input.Text, provider); err != nil { configState.Set("ERROR:"+err.Error()) } else { configState.Set("DONE:"+input.Text) }
+					if err := rclone.CreateConfig(input.Text, provider); err != nil {
+						configState.Set("ERROR:" + err.Error())
+					} else {
+						configState.Set("DONE:" + input.Text)
+					}
 				}()
 			}
 		}, w)
@@ -310,25 +362,40 @@ func ShowCloudSelection(w fyne.Window) {
 
 	// 3. MANUAL
 	configureManual := func(title, provider string) {
-		entryName := widget.NewEntry(); entryURL := widget.NewEntry(); entryURL.PlaceHolder = "https://..."
-		entryUser := widget.NewEntry(); entryPass := widget.NewPasswordEntry()
+		entryName := widget.NewEntry()
+		entryURL := widget.NewEntry()
+		entryURL.PlaceHolder = "https://..."
+		entryUser := widget.NewEntry()
+		entryPass := widget.NewPasswordEntry()
 		d := dialog.NewForm(title, "Ok", "Cancel", []*widget.FormItem{
 			widget.NewFormItem("Nombre:", entryName), widget.NewFormItem("URL:", entryURL),
 				    widget.NewFormItem("User:", entryUser), widget.NewFormItem("Pass:", entryPass),
 		}, func(ok bool) {
 			if ok {
 				opts := map[string]string{"url": entryURL.Text, "user": entryUser.Text, "pass": entryPass.Text, "vendor": "other"}
-				if provider == "nextcloud" { opts["vendor"] = "nextcloud" }
-				go func() { if err := rclone.CreateConfigWithOpts(entryName.Text, provider, opts); err != nil { configState.Set("ERROR:"+err.Error()) } else { configState.Set("DONE:"+entryName.Text) } }()
+				if provider == "nextcloud" {
+					opts["vendor"] = "nextcloud"
+				}
+				go func() {
+					if err := rclone.CreateConfigWithOpts(entryName.Text, provider, opts); err != nil {
+						configState.Set("ERROR:" + err.Error())
+					} else {
+						configState.Set("DONE:" + entryName.Text)
+					}
+				}()
 			}
 		}, w)
-		d.Resize(fyne.NewSize(500, 350)); d.Show()
+		d.Resize(fyne.NewSize(500, 350))
+		d.Show()
 	}
 
 	// 4. S3
 	configureS3 := func() {
-		entryName := widget.NewEntry(); entryProvider := widget.NewSelect([]string{"AWS", "Minio", "Wasabi", "Other"}, nil)
-		entryAccess := widget.NewEntry(); entrySecret := widget.NewPasswordEntry(); entryEndpoint := widget.NewEntry()
+		entryName := widget.NewEntry()
+		entryProvider := widget.NewSelect([]string{"AWS", "Minio", "Wasabi", "Other"}, nil)
+		entryAccess := widget.NewEntry()
+		entrySecret := widget.NewPasswordEntry()
+		entryEndpoint := widget.NewEntry()
 		d := dialog.NewForm("Configurar S3", "Ok", "Cancel", []*widget.FormItem{
 			widget.NewFormItem("Nombre:", entryName), widget.NewFormItem("Prov:", entryProvider),
 				    widget.NewFormItem("Access:", entryAccess), widget.NewFormItem("Secret:", entrySecret),
@@ -336,11 +403,20 @@ func ShowCloudSelection(w fyne.Window) {
 		}, func(ok bool) {
 			if ok {
 				opts := map[string]string{"provider": entryProvider.Selected, "env_auth": "false", "access_key_id": entryAccess.Text, "secret_access_key": entrySecret.Text}
-				if entryEndpoint.Text != "" { opts["endpoint"] = entryEndpoint.Text }
-				go func() { if err := rclone.CreateConfigWithOpts(entryName.Text, "s3", opts); err != nil { configState.Set("ERROR:"+err.Error()) } else { configState.Set("DONE:"+entryName.Text) } }()
+				if entryEndpoint.Text != "" {
+					opts["endpoint"] = entryEndpoint.Text
+				}
+				go func() {
+					if err := rclone.CreateConfigWithOpts(entryName.Text, "s3", opts); err != nil {
+						configState.Set("ERROR:" + err.Error())
+					} else {
+						configState.Set("DONE:" + entryName.Text)
+					}
+				}()
 			}
 		}, w)
-		d.Resize(fyne.NewSize(500, 400)); d.Show()
+		d.Resize(fyne.NewSize(500, 400))
+		d.Show()
 	}
 
 	cloudList := container.NewVBox(
@@ -366,15 +442,20 @@ func ShowCloudSelection(w fyne.Window) {
 func apiError(msg string) error { return fmt.Errorf(msg) }
 
 type myTheme struct{}
+
 var _ fyne.Theme = (*myTheme)(nil)
+
 func (m myTheme) Color(n fyne.ThemeColorName, v fyne.ThemeVariant) color.Color {
 	switch n {
-		case theme.ColorNameBackground: return color.NRGBA{R: 0x18, G: 0x18, B: 0x18, A: 0xFF}
-		case theme.ColorNameOverlayBackground, theme.ColorNameInputBackground: return color.NRGBA{R: 0x25, G: 0x25, B: 0x25, A: 0xFF}
-		case theme.ColorNameButton: return color.NRGBA{R: 0x30, G: 0x30, B: 0x30, A: 0xFF}
+		case theme.ColorNameBackground:
+			return color.NRGBA{R: 0x18, G: 0x18, B: 0x18, A: 0xFF}
+		case theme.ColorNameOverlayBackground, theme.ColorNameInputBackground:
+			return color.NRGBA{R: 0x25, G: 0x25, B: 0x25, A: 0xFF}
+		case theme.ColorNameButton:
+			return color.NRGBA{R: 0x30, G: 0x30, B: 0x30, A: 0xFF}
 	}
 	return theme.DefaultTheme().Color(n, v)
 }
 func (m myTheme) Icon(n fyne.ThemeIconName) fyne.Resource { return theme.DefaultTheme().Icon(n) }
-func (m myTheme) Font(s fyne.TextStyle) fyne.Resource { return theme.DefaultTheme().Font(s) }
-func (m myTheme) Size(n fyne.ThemeSizeName) float32 { return theme.DefaultTheme().Size(n) }
+func (m myTheme) Font(s fyne.TextStyle) fyne.Resource    { return theme.DefaultTheme().Font(s) }
+func (m myTheme) Size(n fyne.ThemeSizeName) float32      { return theme.DefaultTheme().Size(n) }
