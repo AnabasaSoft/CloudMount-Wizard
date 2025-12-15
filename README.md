@@ -144,13 +144,13 @@ sudo pacman -S fuse3 libgl libxrandr libxcursor libxinerama libxi
 
 # Instalar dependencias de desarrollo
 # Ubuntu/Debian
-sudo apt install libgl1-mesa-dev xorg-dev fuse3
+sudo apt install gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev fuse3
 
 # Fedora
-sudo dnf install mesa-libGL-devel libXrandr-devel libXcursor-devel libXinerama-devel libXi-devel fuse3
+sudo dnf install gcc mesa-libGL-devel libX11-devel libXcursor-devel libXrandr-devel libXinerama-devel libXi-devel libxkbcommon-devel wayland-devel fuse3
 
 # Arch Linux
-sudo pacman -S libgl libxrandr libxcursor libxinerama libxi fuse3
+sudo pacman -S base-devel libgl xorg-server-devel libxkbcommon wayland fuse3
 
 # Clonar el repositorio
 git clone https://github.com/AnabasaSoft/CloudMount-Wizard.git
@@ -182,16 +182,17 @@ go build -o cloudmount cmd/cloudmount/main.go
    - **Manual** (Nextcloud, WebDAV, Mega): Introduce tus credenciales
    - **S3**: Configura access key, secret key y endpoint
 
-### Gestionar Conexiones
+### 🔧 Funcionalidades Avanzadas
 
-Desde el dashboard puedes:
-
-- **Conectar/Desconectar**: Monta o desmonta la unidad con un clic
-- **Abrir carpeta**: Accede directamente al punto de montaje en tu gestor de archivos
-- **Automontar**: Activa el montaje automático al iniciar sesión
-- **Ajustes avanzados**: Configura opciones específicas (botón de engranaje ⚙️)
-- **Renombrar**: Cambia el nombre de la conexión
-- **Eliminar**: Borra la configuración completa
+- **Automontaje**: Configura el inicio automático de la aplicación y el montaje de unidades.
+- **Modo Silencioso**: Opción para iniciar la aplicación minimizada en la bandeja del sistema.
+- **Visor de Logs**: Consola en tiempo real para ver la actividad interna de Rclone y Mega.
+- **Opciones personalizables**:
+  - Modo solo lectura
+  - Límite de caché en disco
+  - Límite de ancho de banda
+- **Gestión completa**: Renombrar, eliminar y reconfigurar conexiones
+- **Monitoreo de espacio**: Visualización en tiempo real del uso de almacenamiento
 
 ### Puntos de Montaje
 
@@ -233,6 +234,11 @@ Cada conexión puede tener configuraciones específicas:
 - **Límite de Caché**: Controla el espacio en disco local (ej: `10G`)
 - **Límite de Ancho de Banda**: Restringe la velocidad de transferencia (ej: `2M`)
 
+### Barra de herramientas
+
+- **Visor de Logs**: Abre una consola en tiempo real para diagnosticar problemas con Rclone o Mega.
+- **Preferencias Generales**: (Icono ⚙️) Configura el arranque automático de la aplicación y el inicio minimizado (silencioso) en la bandeja del sistema.
+
 ### Archivos de Configuración
 
 - **Rclone**: `~/.config/rclone/rclone.conf`
@@ -255,6 +261,7 @@ cloudmount-wizard/
 │   │   └── settings.go       # Configuración persistente
 │   └── system/
 │       └── checker.go        # Detección e instalación
+│       └── autostart.go      # Gestión de arranque automático (.desktop)
 └── go.mod
 ```
 
@@ -277,7 +284,6 @@ cloudmount-wizard/
 - [ ] Cifrado local de datos sensibles
 - [ ] Traducción a otros idiomas
 - [ ] Indicadores de velocidad de transferencia en tiempo real
-- [ ] Logs detallados de actividad
 
 ---
 
