@@ -31,9 +31,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev rpm
 
-      # DESPUÉS: Instalar Fyne CLI
-      - name: Instalar herramienta CLI de Fyne
-        run: go install fyne.io/fyne/v2/cmd/fyne@latest
+      # Instalar la NUEVA herramienta Fyne CLI
+      - name: Instalar herramienta CLI de Fyne (nueva versión)
+        run: go install fyne.io/tools/cmd/fyne@latest
 
       - name: Obtener versión del Tag
         id: get_version
@@ -48,18 +48,35 @@ jobs:
       # 2. APPIMAGE
       - name: Crear AppImage
         run: |
-          fyne package -os linux -format appimage -icon icon.png -appID com.anabasasoft.cloudmount -name "CloudMount Wizard" -version ${{ steps.get_version.outputs.VERSION }} -src ./cmd/cloudmount
-          mv *.AppImage CloudMount-Wizard.AppImage
+          ~/go/bin/fyne package -os linux -name "CloudMount-Wizard" -icon icon.png -appID com.anabasasoft.cloudmount -appVersion ${{ steps.get_version.outputs.VERSION }} -src ./cmd/cloudmount
+          # La nueva versión crea el archivo con un nombre diferente, lo renombramos
+          if [ -f "CloudMount-Wizard.AppImage" ]; then
+            echo "AppImage creado correctamente"
+          else
+            echo "Buscando archivo AppImage..."
+            find . -name "*.AppImage" -type f
+            mv *.AppImage CloudMount-Wizard.AppImage 2>/dev/null || true
+          fi
 
       # 3. PAQUETE .DEB (Debian/Ubuntu)
       - name: Crear .deb
         run: |
-          fyne package -os linux -format deb -icon icon.png -appID com.anabasasoft.cloudmount -name "cloudmount-wizard" -version ${{ steps.get_version.outputs.VERSION }} -src ./cmd/cloudmount
+          ~/go/bin/fyne package -os linux -name "cloudmount-wizard" -icon icon.png -appID com.anabasasoft.cloudmount -appVersion ${{ steps.get_version.outputs.VERSION }} -src ./cmd/cloudmount
+          # Renombrar si es necesario
+          if [ ! -f "cloudmount-wizard.deb" ]; then
+            find . -name "*.deb" -type f
+            mv *.deb cloudmount-wizard_${{ steps.get_version.outputs.VERSION }}_amd64.deb 2>/dev/null || true
+          fi
 
       # 4. PAQUETE .RPM (Fedora/RedHat)
       - name: Crear .rpm
         run: |
-          fyne package -os linux -format rpm -icon icon.png -appID com.anabasasoft.cloudmount -name "cloudmount-wizard" -version ${{ steps.get_version.outputs.VERSION }} -src ./cmd/cloudmount
+          ~/go/bin/fyne package -os linux -name "cloudmount-wizard" -icon icon.png -appID com.anabasasoft.cloudmount -appVersion ${{ steps.get_version.outputs.VERSION }} -src ./cmd/cloudmount
+          # Renombrar si es necesario
+          if [ ! -f "cloudmount-wizard.rpm" ]; then
+            find . -name "*.rpm" -type f
+            mv *.rpm cloudmount-wizard-${{ steps.get_version.outputs.VERSION }}.x86_64.rpm 2>/dev/null || true
+          fi
 
       # SUBIR TODO A LA RELEASE DE GITHUB
       - name: Publicar Release
