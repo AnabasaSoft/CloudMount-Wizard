@@ -6,15 +6,27 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"os"
+	"os"             // <--- IMPORTANTE
 	"os/exec"
-	"path/filepath"
+	"path/filepath"  // <--- IMPORTANTE
 	"strings"
 	"time"
 
 	"github.com/anabasasoft/cloudmount-wizard/internal/settings"
 )
 
+// GetConfigDir obtiene la ruta de configuración de Rclone
+func GetConfigDir() string {
+	configDir, _ := os.UserConfigDir()
+	return filepath.Join(configDir, "rclone")
+}
+
+// GetLogFilePath devuelve la ruta del archivo de logs
+func GetLogFilePath() string {
+	return filepath.Join(GetConfigDir(), "cloudmount.log")
+}
+
+// ... (Struct Quota igual que antes) ...
 type Quota struct {
 	Total int64 `json:"total"`
 	Used  int64 `json:"used"`
@@ -22,13 +34,10 @@ type Quota struct {
 	Trash int64 `json:"trashed"`
 }
 
-// --- MONTAJE MANUAL ---
-
 func MountRemote(remoteName string) (string, error) {
 	mountPoint := GetMountPath(remoteName)
-	if err := os.MkdirAll(mountPoint, 0755); err != nil {
-		return "", fmt.Errorf("error mkdir: %v", err)
-	}
+	os.MkdirAll(mountPoint, 0755)
+
 	if IsMounted(mountPoint) { return mountPoint, nil }
 
 	if IsAutomountEnabled(remoteName) {
@@ -36,17 +45,17 @@ func MountRemote(remoteName string) (string, error) {
 		return mountPoint, nil
 	}
 
-	// Opciones base
 	args := []string{
 		"mount", remoteName + ":", mountPoint,
 		"--daemon",
 		"--vfs-cache-mode", "full",
 		"--volname", remoteName,
+		// --- LOGS ---
+		"--log-level", "INFO",
+		"--log-file", GetLogFilePath(),
 	}
 
-	// --- APLICAR OPCIONES AVANZADAS ---
 	opts := settings.GetOptions(remoteName)
-
 	if opts.ReadOnly { args = append(args, "--read-only") }
 	if opts.CacheSize != "" { args = append(args, "--vfs-cache-max-size", opts.CacheSize) }
 	if opts.BwLimit != "" { args = append(args, "--bwlimit", opts.BwLimit) }

@@ -2,9 +2,12 @@ package main
 
 import (
 	"fmt"
+	"flag"
 	"image/color"
 	"strings"
 	"sync"
+	"os"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -28,14 +31,16 @@ var (
 )
 
 func main() {
+	minimizedFlag := flag.Bool("minimized", false, "Iniciar minimizado en el system tray")
+	flag.Parse()
+
 	myApp := app.NewWithID("com.anabasasoft.cloudmount")
 	myApp.SetIcon(resourceIconPng)
 	myApp.Settings().SetTheme(&myTheme{})
 
-	// --- NUEVO: INICIO PERSISTENTE ---
-	// Iniciamos el servidor de Mega desacoplado para que sobreviva al cierre de la app
+	// --- INICIO PERSISTENTE ---
 	go mega.EnsureDaemon()
-	// ---------------------------------
+	// --------------------------
 
 	myWindow := myApp.NewWindow("CloudMount Wizard")
 	myWindow.Resize(fyne.NewSize(850, 650))
@@ -77,31 +82,115 @@ func main() {
 		myWindow.SetContent(container.NewCenter(content))
 	}
 
-	myWindow.ShowAndRun()
+	if *minimizedFlag {
+		fmt.Println("Iniciando minimizado en el tray...")
+		// No llamamos a myWindow.Show()
+		myApp.Run()
+	} else {
+		myWindow.ShowAndRun()
+	}
 }
 
-// ShowDashboard LISTA LAS UNIDADES
-func ShowDashboard(w fyne.Window) {
-	title := widget.NewLabelWithStyle("Mis Unidades", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	addBtn := widget.NewButtonWithIcon("Nueva Conexión", theme.ContentAddIcon(), func() { ShowCloudSelection(w) })
+// ShowLogViewer MUESTRA LA VENTANA DE LOGS
+func ShowLogViewer(w fyne.Window) {
+	logContent := widget.NewMultiLineEntry()
+	logContent.Wrapping = fyne.TextWrapOff
+	logContent.TextStyle = fyne.TextStyle{Monospace: true}
 
+	// Scroll automático
+	logContent.SetMinRowsVisible(20)
+
+	logPath := rclone.GetLogFilePath()
+
+	var timer *time.Timer
+	var readAndShowLogs func()
+
+	readAndShowLogs = func() {
+		defer func() {
+			timer = time.AfterFunc(1000*time.Millisecond, readAndShowLogs)
+		}()
+
+		content, err := os.ReadFile(logPath)
+		if err != nil {
+			msg := "Esperando logs..."
+			if !os.IsNotExist(err) {
+				msg = fmt.Sprintf("Error leyendo logs: %v", err)
+			}
+			fyne.Do(func() { logContent.SetText(msg) })
+			return
+		}
+
+		lines := strings.Split(string(content), "\n")
+		start := 0
+		if len(lines) > 300 { // Mostrar solo últimas 300 líneas
+			start = len(lines) - 300
+		}
+		display := strings.Join(lines[start:], "\n")
+
+		fyne.Do(func() {
+			currentText := logContent.Text
+			// Solo actualizar si hay cambios para evitar parpadeo
+			if display != currentText {
+				logContent.SetText(display)
+				logContent.Refresh()
+				// Hack para scroll down: Mover cursor al final
+				logContent.CursorRow = len(lines)
+			}
+		})
+	}
+
+	readAndShowLogs()
+
+	logWindow := fyne.CurrentApp().NewWindow("Visor de Logs")
+	logWindow.SetContent(container.NewBorder(
+		widget.NewLabelWithStyle("Ruta: "+logPath, fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+						 nil, nil, nil,
+						 container.NewPadded(container.NewVScroll(logContent)),
+	))
+	logWindow.Resize(fyne.NewSize(800, 600))
+
+	logWindow.SetOnClosed(func() {
+		if timer != nil { timer.Stop() }
+	})
+
+	logWindow.Show()
+}
+
+// ShowDashboard LISTA LAS UNIDADES Y HERRAMIENTAS
+func ShowDashboard(w fyne.Window) {
+	// 1. Cabecera y Botones Superiores
+	title := widget.NewLabelWithStyle("Mis Unidades", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+
+	// Botón Añadir Nueva Nube
+	addBtn := widget.NewButtonWithIcon("Nueva", theme.ContentAddIcon(), func() { ShowCloudSelection(w) })
+
+	// Botón Visor de Logs
+	logBtn := widget.NewButtonWithIcon("Logs", theme.VisibilityIcon(), func() { ShowLogViewer(w) })
+
+	// Botón Preferencias Generales (Autostart/Minimizado)
+	configBtn := widget.NewButtonWithIcon("", theme.SettingsIcon(), func() { ShowGlobalSettings(w) })
+
+	// Contenedor de la lista de unidades
 	listContainer := container.NewVBox()
 
+	// 2. Obtener lista de remotos de Rclone
 	remotes, _ := rclone.ListRemotes()
+
+	// 3. Iterar sobre cada unidad configurada
 	for _, rName := range remotes {
-		name := rName
+		name := rName // Captura de variable para closure
 		mountPath := rclone.GetMountPath(name)
 		isMounted := rclone.IsMounted(mountPath)
 		opts := settings.GetOptions(name)
 
-		// Detectar si es Mega
+		// Detección especial para Mega
 		isMega := (name == "Mega")
 		displayName := name
 		if isMega {
 			displayName = "MEGA (Oficial)"
 		}
 
-		// ESTADO INTELIGENTE
+		// --- Lógica de Estado e Iconos ---
 		statusTxt := "OFF"
 		statusIcon := theme.ContentClearIcon()
 
@@ -111,18 +200,19 @@ func ShowDashboard(w fyne.Window) {
 		} else if isMega && mega.IsLoggedIn() {
 			statusTxt = "SESIÓN OK"
 			statusIcon = theme.InfoIcon()
-			// Reactivación silenciosa del puente
+			// Reactivación silenciosa del puente WebDAV si está logueado
 			go mega.GetWebDAVURL()
 		}
 
-		// QUOTA
+		// --- Cálculo de Espacio (Quota) ---
 		quotaTxt := binding.NewString()
 		quotaTxt.Set("...")
 		quotaVal := binding.NewFloat()
 
-		// Calculamos espacio si está montado O conectado
+		// Solo calculamos si hay conexión activa para no bloquear la UI
 		if isMounted || (isMega && mega.IsLoggedIn()) {
 			go func() {
+				// Caso MEGA (Usa comando nativo mega-df)
 				if isMega {
 					used, total, err := mega.GetSpace()
 					if err == nil && total > 0 {
@@ -133,7 +223,7 @@ func ShowDashboard(w fyne.Window) {
 						return
 					}
 				}
-				// Fallback Rclone
+				// Caso Estándar Rclone (Drive, Dropbox, etc.)
 				q, err := rclone.GetQuota(name)
 				if err == nil && q.Total > 0 {
 					fyne.Do(func() {
@@ -141,30 +231,41 @@ func ShowDashboard(w fyne.Window) {
 						quotaVal.Set(float64(q.Used) / float64(q.Total))
 					})
 				} else {
-					fyne.Do(func() { quotaTxt.Set("Espacio: Desconocido") })
+					fyne.Do(func() { quotaTxt.Set("Calculando...") })
 				}
 			}()
 		}
 
-		// BOTONES
+		// --- Botones de Acción por Unidad ---
+
+		// Botón Montar
 		btnMount := widget.NewButton("Montar Disco", func() {
 			go func() {
 				if isMega {
-					// --- NUEVO: Aseguramos que el servidor persista ---
+					// Aseguramos persistencia del demonio antes de montar
 					mega.EnsureDaemon()
 					mega.GetWebDAVURL()
 				}
 				rclone.MountRemote(name)
+				// Recargar dashboard para actualizar estado
 				fyne.Do(func() { ShowDashboard(w) })
 			}()
 		})
 
+		// Botón Desmontar
 		btnUnmount := widget.NewButton("Desmontar", func() {
-			go func() { rclone.UnmountRemote(name); fyne.Do(func() { ShowDashboard(w) }) }()
+			go func() {
+				rclone.UnmountRemote(name)
+				fyne.Do(func() { ShowDashboard(w) })
+			}()
 		})
 
-		btnOpen := widget.NewButtonWithIcon("", theme.FolderOpenIcon(), func() { rclone.OpenFileManager(mountPath) })
+		// Botón Abrir Carpeta
+		btnOpen := widget.NewButtonWithIcon("", theme.FolderOpenIcon(), func() {
+			rclone.OpenFileManager(mountPath)
+		})
 
+		// Gestión de estado de botones (Habilitar/Deshabilitar)
 		if isMounted {
 			btnMount.Disable()
 		} else {
@@ -172,7 +273,7 @@ func ShowDashboard(w fyne.Window) {
 			btnOpen.Disable()
 		}
 
-		// AJUSTES
+		// Botón Ajustes Avanzados (Cache, Solo Lectura)
 		btnSettings := widget.NewButtonWithIcon("", theme.SettingsIcon(), func() {
 			checkRead := widget.NewCheck("Solo Lectura", nil)
 			checkRead.Checked = opts.ReadOnly
@@ -196,6 +297,7 @@ func ShowDashboard(w fyne.Window) {
 						CacheSize: entryCache.Text,
 						BwLimit:   entryBw.Text,
 					})
+					// Si estaba montado, remontamos para aplicar cambios
 					if isMounted {
 						rclone.UnmountRemote(name)
 						rclone.MountRemote(name)
@@ -207,7 +309,7 @@ func ShowDashboard(w fyne.Window) {
 			d.Show()
 		})
 
-		// BORRAR / LOGOUT
+		// Botón Eliminar Unidad
 		btnDelete := widget.NewButtonWithIcon("", theme.DeleteIcon(), func() {
 			msg := "¿Eliminar " + displayName + "?"
 			if isMega {
@@ -226,6 +328,7 @@ func ShowDashboard(w fyne.Window) {
 			}, w)
 		})
 
+		// Construcción de la Tarjeta (Card) Visual
 		card := widget.NewCard("", "", container.NewVBox(
 			container.NewHBox(
 				widget.NewIcon(statusIcon),
@@ -241,16 +344,22 @@ func ShowDashboard(w fyne.Window) {
 		listContainer.Add(card)
 	}
 
+	// Mensaje si lista vacía
 	if len(listContainer.Objects) == 0 {
 		listContainer.Add(widget.NewLabel("No hay unidades configuradas."))
 	}
 
+	// 4. Asignar contenido final a la ventana
 	w.SetContent(container.NewBorder(
-		container.NewVBox(container.NewHBox(title, layout.NewSpacer(), addBtn), widget.NewSeparator()),
+		container.NewVBox(
+			// Header con los botones nuevos: Logs y Configuración
+			container.NewHBox(title, layout.NewSpacer(), logBtn, configBtn, addBtn),
+				  widget.NewSeparator()),
 					 nil, nil, nil,
-					 container.NewPadded(container.NewVScroll(listContainer)),
+				  container.NewPadded(container.NewVScroll(listContainer)),
 	))
 }
+
 
 // ShowCloudSelection PANTALLA DE SELECCIÓN
 func ShowCloudSelection(w fyne.Window) {
@@ -459,3 +568,61 @@ func (m myTheme) Color(n fyne.ThemeColorName, v fyne.ThemeVariant) color.Color {
 func (m myTheme) Icon(n fyne.ThemeIconName) fyne.Resource { return theme.DefaultTheme().Icon(n) }
 func (m myTheme) Font(s fyne.TextStyle) fyne.Resource    { return theme.DefaultTheme().Font(s) }
 func (m myTheme) Size(n fyne.ThemeSizeName) float32      { return theme.DefaultTheme().Size(n) }
+
+func ShowGlobalSettings(parent fyne.Window) {
+	w := fyne.CurrentApp().NewWindow("Preferencias")
+	w.Resize(fyne.NewSize(400, 300))
+
+	lblState := widget.NewLabel("Estado: Desconocido")
+
+	isAutostart := system.IsAutostartEnabled()
+
+	checkAuto := widget.NewCheck("Arrancar al iniciar sesión", nil)
+	checkAuto.Checked = isAutostart
+
+	checkMin := widget.NewCheck("Iniciar minimizado (silencioso)", nil)
+	// Como no guardamos estado de "minimized" en config file,
+	// asumimos que si hay autostart, queremos ver si está activado.
+	// Por simplicidad, dejamos que el usuario lo marque si quiere actualizarlo.
+	checkMin.Disable() // Se activa solo si checkAuto está marcado
+
+	if isAutostart {
+		checkMin.Enable()
+		lblState.SetText("Estado: Autostart ACTIVO")
+	} else {
+		lblState.SetText("Estado: Autostart INACTIVO")
+	}
+
+	checkAuto.OnChanged = func(checked bool) {
+		if checked {
+			checkMin.Enable()
+		} else {
+			checkMin.Disable()
+			checkMin.SetChecked(false)
+		}
+	}
+
+	btnSave := widget.NewButtonWithIcon("Guardar Cambios", theme.DocumentSaveIcon(), func() {
+		err := system.SetAutostart(checkAuto.Checked, checkMin.Checked)
+		if err != nil {
+			dialog.ShowError(err, w)
+		} else {
+			dialog.ShowInformation("Éxito", "Configuración de inicio actualizada.", w)
+			w.Close()
+		}
+	})
+
+	w.SetContent(container.NewVBox(
+		widget.NewLabelWithStyle("Configuración del Sistema", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+				       widget.NewSeparator(),
+				       widget.NewLabel("Comportamiento de arranque:"),
+				       checkAuto,
+				checkMin,
+				widget.NewSeparator(),
+				       lblState,
+				layout.NewSpacer(),
+				       btnSave,
+	))
+
+	w.Show()
+}
