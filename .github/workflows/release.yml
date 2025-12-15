@@ -18,11 +18,18 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.21' # O la versión que estés usando
+          cache: true
 
       - name: Instalar dependencias de compilación (Fyne)
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev rpm
+
+      # NUEVO: Descargar dependencias de Go
+      - name: Descargar dependencias
+        run: |
+          go mod download
+          go mod verify
 
       - name: Instalar herramienta CLI de Fyne
         run: go install fyne.io/fyne/v2/cmd/fyne@latest
