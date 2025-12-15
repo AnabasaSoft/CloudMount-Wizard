@@ -1,0 +1,67 @@
+name: Release Linux Packages
+
+on:
+  push:
+    tags:
+      - 'v*' # Se ejecuta solo cuando subes un tag (ej: v1.0.0)
+
+jobs:
+  build:
+    name: Build & Package for Linux
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21' # O la versión que estés usando
+
+      - name: Instalar dependencias de compilación (Fyne)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev rpm
+
+      - name: Instalar herramienta CLI de Fyne
+        run: go install fyne.io/fyne/v2/cmd/fyne@latest
+
+      - name: Obtener versión del Tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      # 1. BINARIO ESTÁNDAR (Standalone)
+      - name: Compilar Binario Normal
+        run: |
+          go build -ldflags "-s -w" -o CloudMount-Wizard ./cmd/cloudmount
+          tar -czvf cloudmount-linux-amd64.tar.gz CloudMount-Wizard
+
+      # 2. APPIMAGE
+      - name: Crear AppImage
+        run: |
+          fyne package -os linux -format appimage -icon icon.png -appID com.anabasasoft.cloudmount -name "CloudMount Wizard" -version ${{ steps.get_version.outputs.VERSION }} -src ./cmd/cloudmount
+          mv *.AppImage CloudMount-Wizard.AppImage
+
+      # 3. PAQUETE .DEB (Debian/Ubuntu)
+      - name: Crear .deb
+        run: |
+          fyne package -os linux -format deb -icon icon.png -appID com.anabasasoft.cloudmount -name "cloudmount-wizard" -version ${{ steps.get_version.outputs.VERSION }} -src ./cmd/cloudmount
+
+      # 4. PAQUETE .RPM (Fedora/RedHat)
+      - name: Crear .rpm
+        run: |
+          fyne package -os linux -format rpm -icon icon.png -appID com.anabasasoft.cloudmount -name "cloudmount-wizard" -version ${{ steps.get_version.outputs.VERSION }} -src ./cmd/cloudmount
+
+      # SUBIR TODO A LA RELEASE DE GITHUB
+      - name: Publicar Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            cloudmount-linux-amd64.tar.gz
+            *.AppImage
+            *.deb
+            *.rpm
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,12 @@
+[Details]
+Icon = "icon.png"
+Name = "CloudMount Wizard"
+ID = "com.anabasasoft.cloudmount"
+Version = "1.0.0"
+Build = 1
+
+[Meta]
+Author = "AnabasaSoft"
+Description = "Asistente para montar unidades de nube (Mega, Drive, etc) en Linux."
+# Dependencias sugeridas (esto es informativo para el .deb/.rpm)
+Depends = ["rclone"]
