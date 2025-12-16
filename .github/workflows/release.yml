@@ -33,7 +33,8 @@ jobs:
       - name: Instalar dependencias de compilación (Fyne)
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev rpm libfuse2
+          sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev rpm libfuse2 ruby ruby-dev
+          sudo gem install fpm
 
       # Instalar la NUEVA herramienta Fyne CLI
       - name: Instalar herramienta CLI de Fyne (nueva versión)
@@ -98,6 +99,60 @@ jobs:
           # Crear AppImage usando el appimagetool extraído
           ARCH=x86_64 ./squashfs-root/AppRun CloudMount-Wizard.AppDir CloudMount-Wizard.AppImage
 
+      # 3. Crear paquete DEB usando fpm
+      - name: Crear paquete DEB
+        run: |
+          mkdir -p package-deb/usr/bin
+          mkdir -p package-deb/usr/share/applications
+          mkdir -p package-deb/usr/share/icons/hicolor/256x256/apps
+
+          cp CloudMount-Wizard package-deb/usr/bin/cloudmount-wizard
+          cp icon.png package-deb/usr/share/icons/hicolor/256x256/apps/cloudmount-wizard.png
+
+          cat > package-deb/usr/share/applications/cloudmount-wizard.desktop << EOF
+          [Desktop Entry]
+          Name=CloudMount Wizard
+          Exec=cloudmount-wizard
+          Icon=cloudmount-wizard
+          Type=Application
+          Categories=Utility;
+          EOF
+
+          fpm -s dir -t deb -n cloudmount-wizard -v ${{ steps.get_version.outputs.VERSION }} \
+            --description "CloudMount Wizard - Mount cloud storage as local drives" \
+            --url "https://github.com/AnabasaSoft/CloudMount-Wizard" \
+            --maintainer "AnabasaSoft" \
+            --license "MIT" \
+            -C package-deb \
+            usr/bin usr/share
+
+      # 4. Crear paquete RPM usando fpm
+      - name: Crear paquete RPM
+        run: |
+          mkdir -p package-rpm/usr/bin
+          mkdir -p package-rpm/usr/share/applications
+          mkdir -p package-rpm/usr/share/icons/hicolor/256x256/apps
+
+          cp CloudMount-Wizard package-rpm/usr/bin/cloudmount-wizard
+          cp icon.png package-rpm/usr/share/icons/hicolor/256x256/apps/cloudmount-wizard.png
+
+          cat > package-rpm/usr/share/applications/cloudmount-wizard.desktop << EOF
+          [Desktop Entry]
+          Name=CloudMount Wizard
+          Exec=cloudmount-wizard
+          Icon=cloudmount-wizard
+          Type=Application
+          Categories=Utility;
+          EOF
+
+          fpm -s dir -t rpm -n cloudmount-wizard -v ${{ steps.get_version.outputs.VERSION }} \
+            --description "CloudMount Wizard - Mount cloud storage as local drives" \
+            --url "https://github.com/AnabasaSoft/CloudMount-Wizard" \
+            --maintainer "AnabasaSoft" \
+            --license "MIT" \
+            -C package-rpm \
+            usr/bin usr/share
+
       # SUBIR ARCHIVOS A LA RELEASE DE GITHUB
       - name: Publicar Release
         uses: softprops/action-gh-release@v2
@@ -106,6 +161,8 @@ jobs:
           files: |
             cloudmount-linux-amd64.tar.gz
             CloudMount-Wizard.AppImage
+            *.deb
+            *.rpm
           fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
