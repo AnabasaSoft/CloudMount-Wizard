@@ -33,7 +33,7 @@ jobs:
 
       # Instalar la NUEVA herramienta Fyne CLI
       - name: Instalar herramienta CLI de Fyne (nueva versión)
-        run: go install fyne.io/tools/cmd/fyne@latest
+        run: go install fyne.io/fyne/v2/cmd/fyne@latest
 
       - name: Obtener versión del Tag
         id: get_version
@@ -45,38 +45,61 @@ jobs:
           go build -ldflags "-s -w" -o CloudMount-Wizard ./cmd/cloudmount
           tar -czvf cloudmount-linux-amd64.tar.gz CloudMount-Wizard
 
-      # 2. APPIMAGE
-      - name: Crear AppImage
+      # 2. Paquetes usando fyne package (DEB y RPM)
+      - name: Crear paquetes DEB y RPM
         run: |
-          ~/go/bin/fyne package -os linux -name "CloudMount-Wizard" -icon icon.png -appID com.anabasasoft.cloudmount -appVersion ${{ steps.get_version.outputs.VERSION }} -src ./cmd/cloudmount
-          # La nueva versión crea el archivo con un nombre diferente, lo renombramos
-          if [ -f "CloudMount-Wizard.AppImage" ]; then
-            echo "AppImage creado correctamente"
-          else
-            echo "Buscando archivo AppImage..."
-            find . -name "*.AppImage" -type f
-            mv *.AppImage CloudMount-Wizard.AppImage 2>/dev/null || true
-          fi
+          cd ./cmd/cloudmount
+          ~/go/bin/fyne package -os linux -name "cloudmount-wizard" -icon ../../icon.png
+          # Mover los paquetes al directorio raíz
+          mv *.deb ../../cloudmount-wizard_${{ steps.get_version.outputs.VERSION }}_amd64.deb || true
+          mv *.rpm ../../cloudmount-wizard-${{ steps.get_version.outputs.VERSION }}.x86_64.rpm || true
+          cd ../..
 
-      # 3. PAQUETE .DEB (Debian/Ubuntu)
-      - name: Crear .deb
+      # 3. AppImage usando herramientas externas (ya que fyne package no soporta AppImage directamente)
+      - name: Crear AppImage usando appimagetool
         run: |
-          ~/go/bin/fyne package -os linux -name "cloudmount-wizard" -icon icon.png -appID com.anabasasoft.cloudmount -appVersion ${{ steps.get_version.outputs.VERSION }} -src ./cmd/cloudmount
-          # Renombrar si es necesario
-          if [ ! -f "cloudmount-wizard.deb" ]; then
-            find . -name "*.deb" -type f
-            mv *.deb cloudmount-wizard_${{ steps.get_version.outputs.VERSION }}_amd64.deb 2>/dev/null || true
-          fi
+          # Descargar appimagetool
+          wget https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
 
-      # 4. PAQUETE .RPM (Fedora/RedHat)
-      - name: Crear .rpm
-        run: |
-          ~/go/bin/fyne package -os linux -name "cloudmount-wizard" -icon icon.png -appID com.anabasasoft.cloudmount -appVersion ${{ steps.get_version.outputs.VERSION }} -src ./cmd/cloudmount
-          # Renombrar si es necesario
-          if [ ! -f "cloudmount-wizard.rpm" ]; then
-            find . -name "*.rpm" -type f
-            mv *.rpm cloudmount-wizard-${{ steps.get_version.outputs.VERSION }}.x86_64.rpm 2>/dev/null || true
-          fi
+          # Crear estructura AppDir
+          mkdir -p CloudMount-Wizard.AppDir/usr/bin
+          mkdir -p CloudMount-Wizard.AppDir/usr/share/applications
+          mkdir -p CloudMount-Wizard.AppDir/usr/share/icons/hicolor/256x256/apps
+
+          # Copiar el binario
+          cp CloudMount-Wizard CloudMount-Wizard.AppDir/usr/bin/
+
+          # Copiar el icono
+          cp icon.png CloudMount-Wizard.AppDir/usr/share/icons/hicolor/256x256/apps/cloudmount-wizard.png
+          cp icon.png CloudMount-Wizard.AppDir/cloudmount-wizard.png
+
+          # Crear archivo .desktop
+          cat > CloudMount-Wizard.AppDir/cloudmount-wizard.desktop << EOF
+          [Desktop Entry]
+          Name=CloudMount Wizard
+          Exec=CloudMount-Wizard
+          Icon=cloudmount-wizard
+          Type=Application
+          Categories=Utility;
+          EOF
+
+          cp CloudMount-Wizard.AppDir/cloudmount-wizard.desktop CloudMount-Wizard.AppDir/usr/share/applications/
+
+          # Crear AppRun
+          cat > CloudMount-Wizard.AppDir/AppRun << 'EOF'
+          #!/bin/bash
+          SELF=$(readlink -f "$0")
+          HERE=${SELF%/*}
+          export PATH="${HERE}/usr/bin/:${PATH}"
+          export LD_LIBRARY_PATH="${HERE}/usr/lib/:${LD_LIBRARY_PATH}"
+          exec "${HERE}/usr/bin/CloudMount-Wizard" "$@"
+          EOF
+
+          chmod +x CloudMount-Wizard.AppDir/AppRun
+
+          # Crear AppImage
+          ARCH=x86_64 ./appimagetool-x86_64.AppImage CloudMount-Wizard.AppDir CloudMount-Wizard.AppImage
 
       # SUBIR TODO A LA RELEASE DE GITHUB
       - name: Publicar Release
