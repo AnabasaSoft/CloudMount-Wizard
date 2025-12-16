@@ -29,7 +29,7 @@ jobs:
       - name: Instalar dependencias de compilación (Fyne)
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev rpm
+          sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev rpm libfuse2
 
       # Instalar la NUEVA herramienta Fyne CLI
       - name: Instalar herramienta CLI de Fyne (nueva versión)
@@ -61,6 +61,9 @@ jobs:
           # Descargar appimagetool
           wget https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x appimagetool-x86_64.AppImage
+
+          # Extraer appimagetool (no ejecutarlo como AppImage)
+          ./appimagetool-x86_64.AppImage --appimage-extract
 
           # Crear estructura AppDir
           mkdir -p CloudMount-Wizard.AppDir/usr/bin
@@ -98,8 +101,8 @@ jobs:
 
           chmod +x CloudMount-Wizard.AppDir/AppRun
 
-          # Crear AppImage
-          ARCH=x86_64 ./appimagetool-x86_64.AppImage CloudMount-Wizard.AppDir CloudMount-Wizard.AppImage
+          # Crear AppImage usando el appimagetool extraído
+          ARCH=x86_64 ./squashfs-root/AppRun CloudMount-Wizard.AppDir CloudMount-Wizard.AppImage
 
       # SUBIR TODO A LA RELEASE DE GITHUB
       - name: Publicar Release
