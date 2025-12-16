@@ -6,7 +6,7 @@
 
 **Una interfaz gráfica moderna y elegante para Rclone en Linux**
 
-[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat-square&logo=go)](https://golang.org)
+[![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat-square&logo=go)](https://golang.org)
 [![Fyne](https://img.shields.io/badge/Fyne-v2.7-6366F1?style=flat-square)](https://fyne.io)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 [![Linux](https://img.shields.io/badge/Platform-Linux-FCC624?style=flat-square&logo=linux&logoColor=black)](https://www.linux.org/)
@@ -71,59 +71,109 @@ Elige el método según tu distribución:
 
 #### Arch Linux / Manjaro (AUR)
 
+> 📌 **Próximamente disponible en AUR**
+
 ```bash
-# Con yay
+# Con yay (próximamente)
 yay -S cloudmount-wizard
 
-# Con paru
+# Con paru (próximamente)
 paru -S cloudmount-wizard
 ```
+
+Por ahora, puedes usar el **AppImage** o el **binario universal** (ver abajo).
 
 #### Ubuntu / Debian / Linux Mint
 
 ```bash
 # Descargar el paquete .deb desde releases
-wget https://github.com/AnabasaSoft/CloudMount-Wizard/releases/latest/download/cloudmount-wizard_amd64.deb
+wget https://github.com/AnabasaSoft/CloudMount-Wizard/releases/latest/download/cloudmount-wizard_1.0.1_amd64.deb
 
 # Instalar
-sudo dpkg -i cloudmount-wizard_amd64.deb
+sudo dpkg -i cloudmount-wizard_1.0.1_amd64.deb
 
 # Instalar dependencias si es necesario
 sudo apt-get install -f
+
+# Ejecutar desde el menú de aplicaciones o terminal
+cloudmount-wizard
 ```
 
-#### Fedora / RHEL / CentOS / openSUSE
+#### Fedora / RHEL / CentOS
 
 ```bash
 # Descargar el paquete .rpm desde releases
-wget https://github.com/AnabasaSoft/CloudMount-Wizard/releases/latest/download/cloudmount-wizard.x86_64.rpm
+wget https://github.com/AnabasaSoft/CloudMount-Wizard/releases/latest/download/cloudmount-wizard-1.0.1-1.x86_64.rpm
 
-# Fedora/RHEL/CentOS
-sudo dnf install cloudmount-wizard.x86_64.rpm
+# Instalar
+sudo dnf install cloudmount-wizard-1.0.1-1.x86_64.rpm
 
-# openSUSE
-sudo zypper install cloudmount-wizard.x86_64.rpm
+# Ejecutar desde el menú de aplicaciones o terminal
+cloudmount-wizard
 ```
 
-#### Binario Universal (Cualquier distribución)
+#### openSUSE
 
 ```bash
-# Descargar el binario
-wget https://github.com/AnabasaSoft/CloudMount-Wizard/releases/latest/download/cloudmount
+# Descargar el paquete .rpm desde releases
+wget https://github.com/AnabasaSoft/CloudMount-Wizard/releases/latest/download/cloudmount-wizard-1.0.1-1.x86_64.rpm
 
-# Mover a /usr/local/bin
-sudo mv cloudmount /usr/local/bin/
+# Instalar
+sudo zypper install cloudmount-wizard-1.0.1-1.x86_64.rpm
+
+# Ejecutar desde el menú de aplicaciones o terminal
+cloudmount-wizard
+```
+
+#### AppImage (Cualquier distribución) - Recomendado
+
+El **AppImage** es la forma más fácil de ejecutar CloudMount Wizard en cualquier distribución Linux sin necesidad de instalación:
+
+```bash
+# Descargar el AppImage
+wget https://github.com/AnabasaSoft/CloudMount-Wizard/releases/latest/download/CloudMount-Wizard.AppImage
 
 # Hacer ejecutable
-sudo chmod +x /usr/local/bin/cloudmount
+chmod +x CloudMount-Wizard.AppImage
 
 # Ejecutar
-cloudmount
+./CloudMount-Wizard.AppImage
+```
+
+**Ventajas del AppImage:**
+- ✅ No requiere instalación ni permisos de root
+- ✅ Funciona en cualquier distribución Linux moderna
+- ✅ Incluye todas las dependencias necesarias
+- ✅ Fácil de actualizar (solo reemplaza el archivo)
+
+Opcionalmente, puedes moverlo a un directorio en tu PATH:
+```bash
+mkdir -p ~/.local/bin
+mv CloudMount-Wizard.AppImage ~/.local/bin/cloudmount-wizard
+```
+
+#### Binario Universal (Tar.gz)
+
+```bash
+# Descargar el binario comprimido
+wget https://github.com/AnabasaSoft/CloudMount-Wizard/releases/latest/download/cloudmount-linux-amd64.tar.gz
+
+# Extraer
+tar -xzf cloudmount-linux-amd64.tar.gz
+
+# Mover a /usr/local/bin (opcional)
+sudo mv CloudMount-Wizard /usr/local/bin/cloudmount-wizard
+
+# Hacer ejecutable
+sudo chmod +x /usr/local/bin/cloudmount-wizard
+
+# Ejecutar
+cloudmount-wizard
 ```
 
 ### 🛠️ Prerequisitos
 
-Las dependencias se instalan automáticamente con los paquetes .deb y .rpm. Si usas el binario, necesitarás:
+Las dependencias se instalan automáticamente con los paquetes .deb, .rpm y AppImage. Si usas el binario tar.gz, necesitarás:
 
 ```bash
 # Ubuntu/Debian
@@ -157,10 +207,10 @@ git clone https://github.com/AnabasaSoft/CloudMount-Wizard.git
 cd CloudMount-Wizard
 
 # Compilar
-go build -o cloudmount cmd/cloudmount/main.go
+go build -ldflags "-s -w" -o CloudMount-Wizard ./cmd/cloudmount
 
 # Ejecutar
-./cloudmount
+./CloudMount-Wizard
 ```
 
 ---
@@ -198,125 +248,4 @@ go build -o cloudmount cmd/cloudmount/main.go
 
 Por defecto, las nubes se montan en:
 ```
-~/Nubes/[NombreDeLaNube]
-```
-
----
-
-## ☁️ Nubes Soportadas
-
-| Proveedor | Tipo | Autenticación |
-|-----------|------|---------------|
-| Google Drive | Personal | OAuth2 |
-| Dropbox | Personal | OAuth2 |
-| OneDrive | Personal | OAuth2 |
-| pCloud | Personal | OAuth2 |
-| Box | Personal | OAuth2 |
-| Yandex Disk | Personal | OAuth2 |
-| Mega.nz | Personal | Usuario/Contraseña |
-| Nextcloud | Autohospedado | WebDAV |
-| Owncloud | Autohospedado | WebDAV |
-| WebDAV | Genérico | HTTP Basic Auth |
-| Amazon S3 | Almacenamiento | Access/Secret Keys |
-| MinIO | Autohospedado | Access/Secret Keys |
-| Wasabi | Almacenamiento | Access/Secret Keys |
-| DigitalOcean | Almacenamiento | Access/Secret Keys |
-
----
-
-## ⚙️ Configuración Avanzada
-
-### Opciones por Conexión
-
-Cada conexión puede tener configuraciones específicas:
-
-- **Modo Solo Lectura**: Previene modificaciones accidentales
-- **Límite de Caché**: Controla el espacio en disco local (ej: `10G`)
-- **Límite de Ancho de Banda**: Restringe la velocidad de transferencia (ej: `2M`)
-
-### Barra de herramientas
-
-- **Visor de Logs**: Abre una consola en tiempo real para diagnosticar problemas con Rclone o Mega.
-- **Preferencias Generales**: (Icono ⚙️) Configura el arranque automático de la aplicación y el inicio minimizado (silencioso) en la bandeja del sistema.
-
-### Archivos de Configuración
-
-- **Rclone**: `~/.config/rclone/rclone.conf`
-- **CloudMount**: `~/.config/cloudmount/settings.json`
-- **Servicios systemd**: `~/.config/systemd/user/rclone-*.service`
-
----
-
-## 🏗️ Arquitectura del Proyecto
-
-```
-cloudmount-wizard/
-├── cmd/
-│   └── cloudmount/
-│       └── main.go           # Punto de entrada, UI principal
-├── internal/
-│   ├── rclone/
-│   │   └── manager.go        # Gestión de Rclone
-│   ├── settings/
-│   │   └── settings.go       # Configuración persistente
-│   └── system/
-│       └── checker.go        # Detección e instalación
-│       └── autostart.go      # Gestión de arranque automático (.desktop)
-└── go.mod
-```
-
----
-
-## 🤝 Contribuir
-
-¡Las contribuciones son bienvenidas! Si quieres mejorar CloudMount Wizard:
-
-1. Haz un **Fork** del proyecto
-2. Crea una rama para tu característica (`git checkout -b feature/AmazingFeature`)
-3. Realiza tus cambios y haz commit (`git commit -m 'Add some AmazingFeature'`)
-4. Sube los cambios (`git push origin feature/AmazingFeature`)
-5. Abre un **Pull Request**
-
-### Áreas de Mejora
-
-- [ ] Soporte para más proveedores de nube
-- [ ] Sincronización bidireccional
-- [ ] Cifrado local de datos sensibles
-- [ ] Traducción a otros idiomas
-- [ ] Indicadores de velocidad de transferencia en tiempo real
-
----
-
-## 🐛 Reportar Problemas
-
-Si encuentras algún bug o tienes una sugerencia, por favor [abre un issue](https://github.com/anabasasoft/cloudmount-wizard/issues) en GitHub.
-
-También puedes contactarnos directamente en: **anabasasoft@gmail.com**
-
----
-
-## 📄 Licencia
-
-Este proyecto está bajo la licencia MIT. Ver el archivo [LICENSE](LICENSE) para más detalles.
-
----
-
-## 🙏 Agradecimientos
-
-- [Rclone](https://rclone.org/) - El motor que hace posible todo
-- [Fyne](https://fyne.io/) - Framework de UI multiplataforma para Go
-- Comunidad Open Source - Por el apoyo y las contribuciones
-
----
-
-<div align="center">
-
-<img src="https://raw.githubusercontent.com/AnabasaSoft/CloudMount-Wizard/main/AnabasaSoft.jpg" alt="Anabasa Software" width="120"/>
-
-**Desarrollado con ❤️ por [Anabasa Software](https://anabasasoft.github.io)**
-
-📧 Email: [anabasasoft@gmail.com](mailto:anabasasoft@gmail.com) • 🌐 Portafolio: [anabasasoft.github.io](https://anabasasoft.github.io)
-
-⭐ Si te gusta este proyecto, dale una estrella en GitHub
-
-</div>
+~/Nubes/[Nombr
