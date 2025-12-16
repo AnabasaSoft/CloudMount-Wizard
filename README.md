@@ -13,6 +13,12 @@
 
 [Características](#características) • [Instalación](#instalación) • [Uso](#uso) • [Nubes Soportadas](#nubes-soportadas) • [Contribuir](#contribuir)
 
+---
+
+<img src="https://raw.githubusercontent.com/AnabasaSoft/CloudMount-Wizard/main/Captura.png" alt="CloudMount Wizard Screenshot" width="100%"/>
+
+
+
 </div>
 
 ---
@@ -248,4 +254,125 @@ go build -ldflags "-s -w" -o CloudMount-Wizard ./cmd/cloudmount
 
 Por defecto, las nubes se montan en:
 ```
-~/Nubes/[Nombr
+~/Nubes/[NombreDeLaNube]
+```
+
+---
+
+## ☁️ Nubes Soportadas
+
+| Proveedor | Tipo | Autenticación |
+|-----------|------|---------------|
+| Google Drive | Personal | OAuth2 |
+| Dropbox | Personal | OAuth2 |
+| OneDrive | Personal | OAuth2 |
+| pCloud | Personal | OAuth2 |
+| Box | Personal | OAuth2 |
+| Yandex Disk | Personal | OAuth2 |
+| Mega.nz | Personal | Usuario/Contraseña |
+| Nextcloud | Autohospedado | WebDAV |
+| Owncloud | Autohospedado | WebDAV |
+| WebDAV | Genérico | HTTP Basic Auth |
+| Amazon S3 | Almacenamiento | Access/Secret Keys |
+| MinIO | Autohospedado | Access/Secret Keys |
+| Wasabi | Almacenamiento | Access/Secret Keys |
+| DigitalOcean | Almacenamiento | Access/Secret Keys |
+
+---
+
+## ⚙️ Configuración Avanzada
+
+### Opciones por Conexión
+
+Cada conexión puede tener configuraciones específicas:
+
+- **Modo Solo Lectura**: Previene modificaciones accidentales
+- **Límite de Caché**: Controla el espacio en disco local (ej: `10G`)
+- **Límite de Ancho de Banda**: Restringe la velocidad de transferencia (ej: `2M`)
+
+### Barra de herramientas
+
+- **Visor de Logs**: Abre una consola en tiempo real para diagnosticar problemas con Rclone o Mega.
+- **Preferencias Generales**: (Icono ⚙️) Configura el arranque automático de la aplicación y el inicio minimizado (silencioso) en la bandeja del sistema.
+
+### Archivos de Configuración
+
+- **Rclone**: `~/.config/rclone/rclone.conf`
+- **CloudMount**: `~/.config/cloudmount/settings.json`
+- **Servicios systemd**: `~/.config/systemd/user/rclone-*.service`
+
+---
+
+## 🗃️ Arquitectura del Proyecto
+
+```
+cloudmount-wizard/
+├── cmd/
+│   └── cloudmount/
+│       └── main.go           # Punto de entrada, UI principal
+├── internal/
+│   ├── rclone/
+│   │   └── manager.go        # Gestión de Rclone
+│   ├── settings/
+│   │   └── settings.go       # Configuración persistente
+│   └── system/
+│       └── checker.go        # Detección e instalación
+│       └── autostart.go      # Gestión de arranque automático (.desktop)
+└── go.mod
+```
+
+---
+
+## 🤝 Contribuir
+
+¡Las contribuciones son bienvenidas! Si quieres mejorar CloudMount Wizard:
+
+1. Haz un **Fork** del proyecto
+2. Crea una rama para tu característica (`git checkout -b feature/AmazingFeature`)
+3. Realiza tus cambios y haz commit (`git commit -m 'Add some AmazingFeature'`)
+4. Sube los cambios (`git push origin feature/AmazingFeature`)
+5. Abre un **Pull Request**
+
+### Áreas de Mejora
+
+- [ ] Soporte para más proveedores de nube
+- [ ] Sincronización bidireccional
+- [ ] Cifrado local de datos sensibles
+- [ ] Traducción a otros idiomas
+- [ ] Indicadores de velocidad de transferencia en tiempo real
+
+---
+
+## 🐛 Reportar Problemas
+
+Si encuentras algún bug o tienes una sugerencia, por favor [abre un issue](https://github.com/anabasasoft/cloudmount-wizard/issues) en GitHub.
+
+También puedes contactarnos directamente en: **anabasasoft@gmail.com**
+
+---
+
+## 📄 Licencia
+
+Este proyecto está bajo la licencia MIT. Ver el archivo [LICENSE](LICENSE) para más detalles.
+
+---
+
+## 🙏 Agradecimientos
+
+- [Rclone](https://rclone.org/) - El motor que hace posible todo
+- [Fyne](https://fyne.io/) - Framework de UI multiplataforma para Go
+- Comunidad Open Source - Por el apoyo y las contribuciones
+
+---
+
+<div align="center">
+
+<img src="https://raw.githubusercontent.com/AnabasaSoft/CloudMount-Wizard/main/AnabasaSoft.jpg" alt="Anabasa Software" width="120"/>
+
+**Desarrollado con ❤️ por [Anabasa Software](https://anabasasoft.github.io)**
+
+📧 Email: [anabasasoft@gmail.com](mailto:anabasasoft@gmail.com) • 🌐 Portafolio: [anabasasoft.github.io](https://anabasasoft.github.io)
+
+⭐ Si te gusta este proyecto, dale una estrella en GitHub
+
+</div>
