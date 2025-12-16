@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*' # Se ejecuta solo cuando subes un tag (ej: v1.0.0)
 
+# IMPORTANTE: Dar permisos de escritura al workflow
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build & Package for Linux
@@ -45,18 +49,8 @@ jobs:
           go build -ldflags "-s -w" -o CloudMount-Wizard ./cmd/cloudmount
           tar -czvf cloudmount-linux-amd64.tar.gz CloudMount-Wizard
 
-      # 2. Paquetes usando fyne package (DEB y RPM)
-      - name: Crear paquetes DEB y RPM
-        run: |
-          cd ./cmd/cloudmount
-          ~/go/bin/fyne package -os linux -name "cloudmount-wizard" -icon ../../icon.png
-          # Mover los paquetes al directorio raíz
-          mv *.deb ../../cloudmount-wizard_${{ steps.get_version.outputs.VERSION }}_amd64.deb || true
-          mv *.rpm ../../cloudmount-wizard-${{ steps.get_version.outputs.VERSION }}.x86_64.rpm || true
-          cd ../..
-
-      # 3. AppImage usando herramientas externas (ya que fyne package no soporta AppImage directamente)
-      - name: Crear AppImage usando appimagetool
+      # 2. AppImage usando herramientas externas
+      - name: Crear AppImage
         run: |
           # Descargar appimagetool
           wget https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
@@ -104,15 +98,14 @@ jobs:
           # Crear AppImage usando el appimagetool extraído
           ARCH=x86_64 ./squashfs-root/AppRun CloudMount-Wizard.AppDir CloudMount-Wizard.AppImage
 
-      # SUBIR TODO A LA RELEASE DE GITHUB
+      # SUBIR ARCHIVOS A LA RELEASE DE GITHUB
       - name: Publicar Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
             cloudmount-linux-amd64.tar.gz
-            *.AppImage
-            *.deb
-            *.rpm
+            CloudMount-Wizard.AppImage
+          fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
