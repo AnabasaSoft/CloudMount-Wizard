@@ -35,9 +35,16 @@ type Quota struct {
 }
 
 func MountRemote(remoteName string) (string, error) {
-	mountPoint := GetMountPath(remoteName)
-	os.MkdirAll(mountPoint, 0755)
+	// 1. Guardar que esta unidad debe montarse al inicio
+	opts := settings.GetOptions(remoteName)
+	opts.MountOnStart = true
+	settings.SetOptions(remoteName, opts)
+	// ------------------------------------------------
 
+	mountPoint := GetMountPath(remoteName)
+	if err := os.MkdirAll(mountPoint, 0755); err != nil {
+		return "", fmt.Errorf("error mkdir: %v", err)
+	}
 	if IsMounted(mountPoint) { return mountPoint, nil }
 
 	if IsAutomountEnabled(remoteName) {
@@ -50,12 +57,11 @@ func MountRemote(remoteName string) (string, error) {
 		"--daemon",
 		"--vfs-cache-mode", "full",
 		"--volname", remoteName,
-		// --- LOGS ---
+		// --- LOGS (Restaurados) ---
 		"--log-level", "INFO",
 		"--log-file", GetLogFilePath(),
 	}
 
-	opts := settings.GetOptions(remoteName)
 	if opts.ReadOnly { args = append(args, "--read-only") }
 	if opts.CacheSize != "" { args = append(args, "--vfs-cache-max-size", opts.CacheSize) }
 	if opts.BwLimit != "" { args = append(args, "--bwlimit", opts.BwLimit) }
@@ -163,6 +169,12 @@ func FormatBytes(size int64) string {
 }
 
 func UnmountRemote(remoteName string) error {
+	// 1. Guardar que esta unidad YA NO debe montarse al inicio
+	opts := settings.GetOptions(remoteName)
+	opts.MountOnStart = false
+	settings.SetOptions(remoteName, opts)
+	// -------------------------------------------------------
+
 	if IsAutomountEnabled(remoteName) {
 		exec.Command("systemctl", "--user", "stop", "rclone-"+remoteName+".service").Run()
 		return nil

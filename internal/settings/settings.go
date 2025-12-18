@@ -11,6 +11,7 @@ type RemoteOptions struct {
 	ReadOnly  bool   `json:"read_only"`
 	CacheSize string `json:"cache_size"` // Ej: "10G"
 	BwLimit   string `json:"bw_limit"`   // Ej: "2M"
+	MountOnStart bool   `json:"mount_on_start"`
 }
 
 type AppConfig struct {
