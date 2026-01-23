@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"os"             // <--- IMPORTANTE
+	"os"
 	"os/exec"
-	"path/filepath"  // <--- IMPORTANTE
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -26,7 +26,6 @@ func GetLogFilePath() string {
 	return filepath.Join(GetConfigDir(), "cloudmount.log")
 }
 
-// ... (Struct Quota igual que antes) ...
 type Quota struct {
 	Total int64 `json:"total"`
 	Used  int64 `json:"used"`
@@ -35,36 +34,38 @@ type Quota struct {
 }
 
 func MountRemote(remoteName string) (string, error) {
-	// 1. Guardar que esta unidad debe montarse al inicio
-	opts := settings.GetOptions(remoteName)
-	opts.MountOnStart = true
-	settings.SetOptions(remoteName, opts)
-	// ------------------------------------------------
-
 	mountPoint := GetMountPath(remoteName)
 	if err := os.MkdirAll(mountPoint, 0755); err != nil {
 		return "", fmt.Errorf("error mkdir: %v", err)
 	}
-	if IsMounted(mountPoint) { return mountPoint, nil }
+	if IsMounted(mountPoint) {
+		return mountPoint, nil
+	}
 
 	if IsAutomountEnabled(remoteName) {
 		exec.Command("systemctl", "--user", "start", "rclone-"+remoteName+".service").Run()
 		return mountPoint, nil
 	}
 
+	opts := settings.GetOptions(remoteName)
 	args := []string{
 		"mount", remoteName + ":", mountPoint,
 		"--daemon",
 		"--vfs-cache-mode", "full",
 		"--volname", remoteName,
-		// --- LOGS (Restaurados) ---
 		"--log-level", "INFO",
 		"--log-file", GetLogFilePath(),
 	}
 
-	if opts.ReadOnly { args = append(args, "--read-only") }
-	if opts.CacheSize != "" { args = append(args, "--vfs-cache-max-size", opts.CacheSize) }
-	if opts.BwLimit != "" { args = append(args, "--bwlimit", opts.BwLimit) }
+	if opts.ReadOnly {
+		args = append(args, "--read-only")
+	}
+	if opts.CacheSize != "" {
+		args = append(args, "--vfs-cache-max-size", opts.CacheSize)
+	}
+	if opts.BwLimit != "" {
+		args = append(args, "--bwlimit", opts.BwLimit)
+	}
 
 	cmd := exec.Command("rclone", args...)
 	if output, err := cmd.CombinedOutput(); err != nil {
@@ -72,8 +73,6 @@ func MountRemote(remoteName string) (string, error) {
 	}
 	return mountPoint, nil
 }
-
-// --- SYSTEMD AUTOMOUNT ---
 
 func EnableAutomount(remoteName string) error {
 	mountPoint := GetMountPath(remoteName)
@@ -85,18 +84,26 @@ func EnableAutomount(remoteName string) error {
 	}
 
 	rcloneBin, err := exec.LookPath("rclone")
-	if err != nil { return fmt.Errorf("no rclone") }
+	if err != nil {
+		return fmt.Errorf("no rclone")
+	}
 	fuserBin, err := exec.LookPath("fusermount")
-	if err != nil { fuserBin = "/bin/fusermount" }
+	if err != nil {
+		fuserBin = "/bin/fusermount"
+	}
 
-	// Construimos las flags
 	flags := fmt.Sprintf("--vfs-cache-mode full --no-checksum --no-modtime --volname %s", remoteName)
 
-	// --- APLICAR OPCIONES AVANZADAS ---
 	opts := settings.GetOptions(remoteName)
-	if opts.ReadOnly { flags += " --read-only" }
-	if opts.CacheSize != "" { flags += " --vfs-cache-max-size " + opts.CacheSize }
-	if opts.BwLimit != "" { flags += " --bwlimit " + opts.BwLimit }
+	if opts.ReadOnly {
+		flags += " --read-only"
+	}
+	if opts.CacheSize != "" {
+		flags += " --vfs-cache-max-size " + opts.CacheSize
+	}
+	if opts.BwLimit != "" {
+		flags += " --bwlimit " + opts.BwLimit
+	}
 
 	serviceContent := fmt.Sprintf(`[Unit]
 	Description=Automount Rclone %s
@@ -116,37 +123,47 @@ func EnableAutomount(remoteName string) error {
 	`, remoteName, mountPoint, rcloneBin, remoteName, mountPoint, flags, fuserBin, mountPoint)
 
 	path := getServicePath(remoteName)
-	if err := os.WriteFile(path, []byte(serviceContent), 0644); err != nil { return err }
+	if err := os.WriteFile(path, []byte(serviceContent), 0644); err != nil {
+		return err
+	}
 	exec.Command("systemctl", "--user", "daemon-reload").Run()
 	return exec.Command("systemctl", "--user", "enable", "--now", "rclone-"+remoteName+".service").Run()
 }
 
-// --- RESTO DE FUNCIONES (IGUAL QUE ANTES) ---
-
 func CreateConfig(name, provider string) error {
 	cmd := exec.Command("rclone", "config", "create", name, provider)
 	output, err := cmd.CombinedOutput()
-	if err != nil { return fmt.Errorf("error: %s", string(output)) }
+	if err != nil {
+		return fmt.Errorf("error: %s", string(output))
+	}
 	return nil
 }
 
 func CreateConfigWithOpts(name, provider string, opts map[string]string) error {
 	args := []string{"config", "create", name, provider}
-	for key, value := range opts { args = append(args, fmt.Sprintf("%s=%s", key, value)) }
+	for key, value := range opts {
+		args = append(args, fmt.Sprintf("%s=%s", key, value))
+	}
 	cmd := exec.Command("rclone", args...)
-	if out, err := cmd.CombinedOutput(); err != nil { return fmt.Errorf("err: %s", string(out)) }
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("err: %s", string(out))
+	}
 	return nil
 }
 
 func ListRemotes() ([]string, error) {
 	cmd := exec.Command("rclone", "listremotes")
 	output, err := cmd.Output()
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var remotes []string
 	scanner := bufio.NewScanner(bytes.NewReader(output))
 	for scanner.Scan() {
 		line := scanner.Text()
-		if name := strings.TrimSuffix(line, ":"); name != "" { remotes = append(remotes, name) }
+		if name := strings.TrimSuffix(line, ":"); name != "" {
+			remotes = append(remotes, name)
+		}
 	}
 	return remotes, nil
 }
@@ -154,27 +171,29 @@ func ListRemotes() ([]string, error) {
 func GetQuota(remoteName string) (*Quota, error) {
 	cmd := exec.Command("rclone", "about", remoteName+":", "--json")
 	output, err := cmd.Output()
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var q Quota
-	if err := json.Unmarshal(output, &q); err != nil { return nil, err }
+	if err := json.Unmarshal(output, &q); err != nil {
+		return nil, err
+	}
 	return &q, nil
 }
 
 func FormatBytes(size int64) string {
-	if size <= 0 { return "0 B" }
+	if size <= 0 {
+		return "0 B"
+	}
 	units := []string{"B", "KB", "MB", "GB", "TB", "PB"}
 	i := int(math.Floor(math.Log(float64(size)) / math.Log(1024)))
-	if i >= len(units) { i = len(units) - 1 }
+	if i >= len(units) {
+		i = len(units) - 1
+	}
 	return fmt.Sprintf("%.2f %s", float64(size)/math.Pow(1024, float64(i)), units[i])
 }
 
 func UnmountRemote(remoteName string) error {
-	// 1. Guardar que esta unidad YA NO debe montarse al inicio
-	opts := settings.GetOptions(remoteName)
-	opts.MountOnStart = false
-	settings.SetOptions(remoteName, opts)
-	// -------------------------------------------------------
-
 	if IsAutomountEnabled(remoteName) {
 		exec.Command("systemctl", "--user", "stop", "rclone-"+remoteName+".service").Run()
 		return nil
@@ -187,10 +206,10 @@ func UnmountRemote(remoteName string) error {
 }
 
 func RenameRemote(oldName, newName string) error {
-	if IsAutomountEnabled(oldName) { DisableAutomount(oldName) }
+	if IsAutomountEnabled(oldName) {
+		DisableAutomount(oldName)
+	}
 	UnmountRemote(oldName)
-	// Lógica de renombrado de rclone.conf (abreviada para no repetir todo el bloque anterior)
-	// Si tienes el código completo de rename, úsalo aquí. Lo simplifico:
 	configDir, _ := os.UserConfigDir()
 	configPath := filepath.Join(configDir, "rclone", "rclone.conf")
 	content, _ := os.ReadFile(configPath)
@@ -220,7 +239,7 @@ func IsAutomountEnabled(remoteName string) bool {
 }
 
 func DisableAutomount(remoteName string) error {
-	name := "rclone-"+remoteName+".service"
+	name := "rclone-" + remoteName + ".service"
 	exec.Command("systemctl", "--user", "stop", name).Run()
 	exec.Command("systemctl", "--user", "disable", name).Run()
 	os.Remove(getServicePath(remoteName))
@@ -229,11 +248,35 @@ func DisableAutomount(remoteName string) error {
 }
 
 func IsMounted(path string) bool {
-	content, _ := os.ReadFile("/proc/mounts")
-	return strings.Contains(string(content), path)
+	// Método 1: Verificar con mountpoint (más confiable)
+	cmd := exec.Command("mountpoint", "-q", path)
+	if cmd.Run() == nil {
+		return true
+	}
+
+	// Método 2: Buscar en /proc/mounts
+	content, err := os.ReadFile("/proc/mounts")
+	if err == nil {
+		// Buscamos tanto el path completo como normalizado
+		mounts := string(content)
+		if strings.Contains(mounts, path) {
+			return true
+		}
+		// Intentar con path normalizado (sin trailing slash)
+		cleanPath := strings.TrimSuffix(path, "/")
+		if strings.Contains(mounts, cleanPath) {
+			return true
+		}
+	}
+
+	// Método 3: Verificar si hay proceso rclone montando este path
+	cmd = exec.Command("pgrep", "-f", "rclone.*"+filepath.Base(path))
+	return cmd.Run() == nil
 }
 
-func OpenFileManager(path string) { exec.Command("xdg-open", path).Start() }
+func OpenFileManager(path string) {
+	exec.Command("xdg-open", path).Start()
+}
 
 func GetMountPath(remoteName string) string {
 	home, _ := os.UserHomeDir()
