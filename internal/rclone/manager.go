@@ -21,9 +21,15 @@ func GetConfigDir() string {
 	return filepath.Join(configDir, "rclone")
 }
 
-// GetLogFilePath devuelve la ruta del archivo de logs
-func GetLogFilePath() string {
-	return filepath.Join(GetConfigDir(), "cloudmount.log")
+// GetLogFilePath devuelve la ruta del archivo de logs.
+// Si se pasa un remoteName, genera un log específico (cloudmount-Drive.log).
+// Si se pasa cadena vacía, devuelve el log global.
+func GetLogFilePath(remoteName string) string {
+	fileName := "cloudmount.log"
+	if remoteName != "" {
+		fileName = fmt.Sprintf("cloudmount-%s.log", remoteName)
+	}
+	return filepath.Join(GetConfigDir(), fileName)
 }
 
 type Quota struct {
@@ -35,18 +41,40 @@ type Quota struct {
 
 func MountRemote(remoteName string) (string, error) {
 	mountPoint := GetMountPath(remoteName)
+
+	// --- FASE DE LIMPIEZA (ANTI-DUPLICADOS) ---
+	// 1. Matamos específicamente el proceso rclone que esté montando ESTA unidad.
+	// El patrón busca "rclone mount NombreRemoto:" para no matar otras nubes.
+	cmdKill := exec.Command("pkill", "-f", fmt.Sprintf("rclone mount %s:", remoteName))
+	cmdKill.Run()
+
+	// 2. Comprobamos si el punto de montaje sigue ocupado
+	if IsMounted(mountPoint) {
+		// Intento 1: Desmontaje normal
+		exec.Command("fusermount", "-u", mountPoint).Run()
+		time.Sleep(500 * time.Millisecond) // Damos medio segundo al sistema
+
+		// Intento 2: Si sigue montado (quizás bloqueado), forzamos (lazy unmount)
+		if IsMounted(mountPoint) {
+			exec.Command("fusermount", "-u", "-z", mountPoint).Run()
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+	// ------------------------------------------
+
+	// Crear carpeta si no existe
 	if err := os.MkdirAll(mountPoint, 0755); err != nil {
 		return "", fmt.Errorf("error mkdir: %v", err)
 	}
-	if IsMounted(mountPoint) {
-		return mountPoint, nil
-	}
 
+	// Si el usuario tiene activado el automontaje por Systemd, usamos el servicio
 	if IsAutomountEnabled(remoteName) {
-		exec.Command("systemctl", "--user", "start", "rclone-"+remoteName+".service").Run()
+		// Usamos 'restart' para asegurar que levanta limpio después del pkill
+		exec.Command("systemctl", "--user", "restart", "rclone-"+remoteName+".service").Run()
 		return mountPoint, nil
 	}
 
+	// Configuración manual de rclone
 	opts := settings.GetOptions(remoteName)
 	args := []string{
 		"mount", remoteName + ":", mountPoint,
@@ -54,7 +82,8 @@ func MountRemote(remoteName string) (string, error) {
 		"--vfs-cache-mode", "full",
 		"--volname", remoteName,
 		"--log-level", "INFO",
-		"--log-file", GetLogFilePath(),
+		// AQUÍ USAMOS LA FUNCIÓN ACTUALIZADA PARA SEPARAR LOS LOGS
+		"--log-file", GetLogFilePath(remoteName),
 	}
 
 	if opts.ReadOnly {

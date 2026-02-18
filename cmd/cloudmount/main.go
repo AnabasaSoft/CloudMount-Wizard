@@ -122,18 +122,23 @@ func main() {
 }
 
 // ShowLogViewer muestra la ventana de logs
+// ShowLogViewer muestra la ventana de logs con selector de unidad
 func ShowLogViewer(w fyne.Window) {
 	logContent := widget.NewMultiLineEntry()
 	logContent.Wrapping = fyne.TextWrapOff
 	logContent.TextStyle = fyne.TextStyle{Monospace: true}
 	logContent.SetMinRowsVisible(20)
 
-	logPath := rclone.GetLogFilePath()
+	// Estado actual
+	currentRemote := ""
+	logPath := rclone.GetLogFilePath("")
 
 	var timer *time.Timer
 	var readAndShowLogs func()
 
+	// Función de lectura
 	readAndShowLogs = func() {
+		// Reprogramar lectura
 		defer func() {
 			timer = time.AfterFunc(1000*time.Millisecond, readAndShowLogs)
 		}()
@@ -142,16 +147,21 @@ func ShowLogViewer(w fyne.Window) {
 		if err != nil {
 			msg := "Esperando logs..."
 			if !os.IsNotExist(err) {
-				msg = fmt.Sprintf("Error leyendo logs: %v", err)
+				msg = fmt.Sprintf("Error leyendo logs en %s:\n%v", logPath, err)
 			}
-			fyne.Do(func() { logContent.SetText(msg) })
+			// Solo actualizamos si el mensaje cambia para no parpadear
+			fyne.Do(func() {
+				if logContent.Text != msg && !strings.Contains(logContent.Text, "Leyendo") {
+					logContent.SetText(msg)
+				}
+			})
 			return
 		}
 
 		lines := strings.Split(string(content), "\n")
 		start := 0
 		if len(lines) > 300 {
-			start = len(lines) - 300
+			start = len(lines) - 300 // Mostrar solo las últimas 300 líneas
 		}
 		display := strings.Join(lines[start:], "\n")
 
@@ -160,18 +170,55 @@ func ShowLogViewer(w fyne.Window) {
 			if display != currentText {
 				logContent.SetText(display)
 				logContent.Refresh()
+				// Autoscroll al final
 				logContent.CursorRow = len(lines)
 			}
 		})
 	}
 
-	readAndShowLogs()
+	// Obtener lista de remotes para el selector
+	remotes, _ := rclone.ListRemotes()
+	options := []string{"Global (cloudmount.log)"}
+	for _, r := range remotes {
+		options = append(options, r)
+	}
+
+	// Selector de archivo de log
+	combo := widget.NewSelect(options, func(selected string) {
+		if timer != nil {
+			timer.Stop()
+		}
+
+		if selected == "Global (cloudmount.log)" {
+			currentRemote = ""
+		} else {
+			currentRemote = selected
+		}
+
+		// Actualizar ruta y limpiar vista
+		logPath = rclone.GetLogFilePath(currentRemote)
+		logContent.SetText("Cargando " + selected + "...")
+
+		// Reiniciar ciclo de lectura inmediatamente
+		readAndShowLogs()
+	})
+
+	// Seleccionar el primero por defecto (o Global)
+	combo.SetSelectedIndex(0)
 
 	logWindow := fyne.CurrentApp().NewWindow("Visor de Logs")
+
+	// Layout
+	header := container.NewVBox(
+		widget.NewLabelWithStyle("Selecciona Unidad:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+				    combo,
+			     widget.NewSeparator(),
+	)
+
 	logWindow.SetContent(container.NewBorder(
-		widget.NewLabelWithStyle("Ruta: "+logPath, fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
-						 nil, nil, nil,
-					  container.NewPadded(container.NewVScroll(logContent)),
+		header,
+		nil, nil, nil,
+		container.NewPadded(container.NewVScroll(logContent)),
 	))
 	logWindow.Resize(fyne.NewSize(800, 600))
 
@@ -182,6 +229,9 @@ func ShowLogViewer(w fyne.Window) {
 	})
 
 	logWindow.Show()
+
+	// Iniciar el loop inicial (se reinicia al cambiar el combo, pero necesitamos arrancarlo)
+	readAndShowLogs()
 }
 
 // ShowDashboard muestra la lista de unidades y herramientas
