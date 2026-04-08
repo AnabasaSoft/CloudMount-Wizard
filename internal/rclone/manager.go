@@ -96,6 +96,10 @@ func MountRemote(remoteName string) (string, error) {
 		args = append(args, "--bwlimit", opts.BwLimit)
 	}
 
+	if opts.RootFolderID != "" {
+		args = append(args, "--drive-root-folder-id", opts.RootFolderID)
+	}
+
 	cmd := exec.Command("rclone", args...)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("error mount: %s", string(output))
@@ -132,6 +136,10 @@ func EnableAutomount(remoteName string) error {
 	}
 	if opts.BwLimit != "" {
 		flags += " --bwlimit " + opts.BwLimit
+	}
+
+	if opts.RootFolderID != "" {
+		flags += " --drive-root-folder-id " + opts.RootFolderID
 	}
 
 	serviceContent := fmt.Sprintf(`[Unit]

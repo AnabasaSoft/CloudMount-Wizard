@@ -8,10 +8,11 @@ import (
 )
 
 type RemoteOptions struct {
-	ReadOnly  bool   `json:"read_only"`
-	CacheSize string `json:"cache_size"` // Ej: "10G"
-	BwLimit   string `json:"bw_limit"`   // Ej: "2M"
+	ReadOnly     bool   `json:"read_only"`
+	CacheSize    string `json:"cache_size"` // Ej: "10G"
+	BwLimit      string `json:"bw_limit"`   // Ej: "2M"
 	MountOnStart bool   `json:"mount_on_start"`
+	RootFolderID string `json:"root_folder_id"`
 }
 
 type AppConfig struct {
