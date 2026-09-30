@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -262,8 +263,47 @@ func ShowLogViewer() {
 	}()
 }
 
-// ShowDashboard muestra la lista de unidades y herramientas
+// remoteState es el estado de una unidad, consultado fuera del hilo de la UI
+type remoteState struct {
+	name        string
+	mounted     bool
+	megaSession bool // Solo en Mega: hay sesión iniciada en MEGAcmd
+}
+
+// dashboardSeq numera cada petición de refresco para descartar resultados viejos
+// si se piden varios refrescos seguidos
+var dashboardSeq atomic.Uint64
+
+// loadRemoteStates lanza los procesos externos (rclone, mega-whoami) para conocer el estado
+func loadRemoteStates() []remoteState {
+	remotes, _ := rclone.ListRemotes()
+	states := make([]remoteState, 0, len(remotes))
+	for _, name := range remotes {
+		st := remoteState{name: name, mounted: rclone.IsMounted(rclone.GetMountPath(name))}
+		if name == "Mega" {
+			st.megaSession = mega.IsLoggedIn()
+		}
+		states = append(states, st)
+	}
+	return states
+}
+
+// ShowDashboard consulta el estado de las unidades en segundo plano y después
+// pinta el panel, para no bloquear la UI con procesos externos
 func ShowDashboard(w fyne.Window) {
+	seq := dashboardSeq.Add(1)
+	go func() {
+		states := loadRemoteStates()
+		fyne.Do(func() {
+			if seq == dashboardSeq.Load() {
+				renderDashboard(w, states)
+			}
+		})
+	}()
+}
+
+// renderDashboard muestra la lista de unidades y herramientas
+func renderDashboard(w fyne.Window, states []remoteState) {
 	// Cabecera y herramientas globales
 	title := widget.NewLabelWithStyle("Mis Unidades", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	addBtn := widget.NewButtonWithIcon("Nueva", theme.ContentAddIcon(), func() { ShowCloudSelection(w) })
@@ -272,14 +312,11 @@ func ShowDashboard(w fyne.Window) {
 
 	listContainer := container.NewVBox()
 
-	// Obtener lista de nubes
-	remotes, _ := rclone.ListRemotes()
-
 	// Generar tarjetas para cada nube
-	for _, rName := range remotes {
-		name := rName
+	for _, st := range states {
+		name := st.name
 		mountPath := rclone.GetMountPath(name)
-		isMounted := rclone.IsMounted(mountPath)
+		isMounted := st.mounted
 		opts := settings.GetOptions(name)
 
 		isMega := (name == "Mega")
@@ -295,10 +332,9 @@ func ShowDashboard(w fyne.Window) {
 		if isMounted {
 			statusTxt = "MONTADO"
 			statusIcon = theme.ConfirmIcon()
-		} else if isMega && mega.IsLoggedIn() {
+		} else if st.megaSession {
 			statusTxt = "SESION OK"
 			statusIcon = theme.InfoIcon()
-			go mega.GetWebDAVURL()
 		}
 
 		// Calculo de espacio (asincrono)
@@ -306,7 +342,7 @@ func ShowDashboard(w fyne.Window) {
 		quotaTxt.Set("...")
 		quotaVal := binding.NewFloat()
 
-		if isMounted || (isMega && mega.IsLoggedIn()) {
+		if isMounted || st.megaSession {
 			go func() {
 				if isMega {
 					used, total, err := mega.GetSpace()

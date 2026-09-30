@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // --- SECCIÓN RCLONE (Restaurada) ---
@@ -225,7 +226,9 @@ func getMegaPackage(family string, info map[string]string, arch string) (megaPac
 }
 
 func downloadFile(url, filepath string) error {
-	resp, err := http.Get(url)
+	// Sin timeout, una conexión colgada dejaría la pantalla "Instalando..." para siempre
+	client := &http.Client{Timeout: 10 * time.Minute}
+	resp, err := client.Get(url)
 	if err != nil {
 		return err
 	}
