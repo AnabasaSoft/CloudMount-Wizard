@@ -8,7 +8,7 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat-square&logo=go)](https://go.dev)
 [![Fyne](https://img.shields.io/badge/Fyne-v2.7-6366F1?style=flat-square)](https://fyne.io)
-[![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
+[![License](https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square)](LICENSE)
 [![Linux](https://img.shields.io/badge/Platform-Linux-FCC624?style=flat-square&logo=linux&logoColor=black)](https://www.linux.org/)
 [![Release](https://img.shields.io/github/v/release/AnabasaSoft/CloudMount-Wizard?style=flat-square)](https://github.com/AnabasaSoft/CloudMount-Wizard/releases/latest)
 
@@ -396,7 +396,7 @@ También puedes escribirnos a: **anabasasoft@gmail.com**
 <a id="licencia"></a>
 ## 📄 Licencia
 
-Este proyecto está bajo la licencia MIT. Consulta el fichero [LICENSE](LICENSE) para más detalles.
+Este proyecto es software libre bajo la licencia **GNU General Public License v3.0 o posterior** (GPL-3.0-or-later): puedes usarlo, estudiarlo, modificarlo y redistribuirlo, siempre que las versiones modificadas que distribuyas mantengan la misma licencia y publiquen su código fuente. Consulta el fichero [LICENSE](LICENSE) para el texto completo.
 
 ---
 

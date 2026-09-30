@@ -140,7 +140,7 @@ jobs:
             --description "CloudMount Wizard - Mount cloud storage as local drives" \
             --url "https://github.com/AnabasaSoft/CloudMount-Wizard" \
             --maintainer "AnabasaSoft" \
-            --license "MIT" \
+            --license "GPL-3.0-or-later" \
             -C package-deb \
             usr/bin usr/share
 
@@ -168,7 +168,7 @@ jobs:
             --description "CloudMount Wizard - Mount cloud storage as local drives" \
             --url "https://github.com/AnabasaSoft/CloudMount-Wizard" \
             --maintainer "AnabasaSoft" \
-            --license "MIT" \
+            --license "GPL-3.0-or-later" \
             -C package-rpm \
             usr/bin usr/share
 
