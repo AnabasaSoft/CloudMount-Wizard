@@ -92,10 +92,11 @@ func MountRemote(remoteName string) (string, error) {
 	if opts.BwLimit != "" {
 		args = append(args, "--bwlimit", opts.BwLimit)
 	}
-	if supportsLogRotation() {
+	if supportsFlag("--log-file-max-size") {
 		// Rotamos el log para que no crezca sin límite (con INFO llega a decenas de MB)
 		args = append(args, "--log-file-max-size", "5M", "--log-file-max-backups", "1")
 	}
+	args = append(args, performanceArgs(remoteName)...)
 
 	// Con --daemon el proceso padre espera a que el montaje esté listo (--daemon-wait)
 	// y termina con el código de salida real. No capturamos stdout/stderr: el hijo
@@ -110,20 +111,66 @@ func MountRemote(remoteName string) (string, error) {
 	return mountPoint, nil
 }
 
+// performanceArgs ajusta la caché y el paralelismo para que navegar por la unidad
+// (con Dolphin, por ejemplo) no espere a la red en cada carpeta
+func performanceArgs(remoteName string) []string {
+	var args []string
+	if supportsChangeNotify(remoteName) {
+		// La nube avisa de los cambios hechos desde fuera (rclone la consulta cada
+		// minuto con --poll-interval), así que el listado de carpetas puede guardarse
+		// en memoria indefinidamente sin quedarse desactualizado
+		args = append(args, "--dir-cache-time", "1000h")
+		if supportsFlag("--vfs-refresh") {
+			// Al montar, recorre las carpetas en segundo plano: la primera visita ya es rápida
+			args = append(args, "--vfs-refresh")
+		}
+	} else {
+		// Sin avisos de cambios (WebDAV, Mega, S3...): lo que se cambie desde fuera
+		// tarda como mucho esto en verse. Lo cambiado desde el montaje se ve al momento.
+		args = append(args, "--dir-cache-time", "30m")
+	}
+	// Más operaciones en paralelo: subidas desde la caché y comprobaciones
+	args = append(args, "--transfers", "8", "--checkers", "16")
+	if supportsFlag("--vfs-read-chunk-streams") {
+		// Descarga cada fichero grande en varios trozos a la vez
+		args = append(args, "--vfs-read-chunk-streams", "4")
+	}
+	return args
+}
+
+// supportsChangeNotify indica si el tipo de nube avisa a rclone de los cambios
+// (Google Drive, Dropbox, OneDrive, Box...). Ante cualquier duda, devuelve false.
+func supportsChangeNotify(remoteName string) bool {
+	out, err := exec.Command("rclone", "backend", "features", remoteName+":").Output()
+	if err != nil {
+		return false
+	}
+	var info struct {
+		Features map[string]bool `json:"Features"`
+	}
+	return json.Unmarshal(out, &info) == nil && info.Features["ChangeNotify"]
+}
+
 var (
-	logRotationOnce      sync.Once
-	logRotationSupported bool
+	flagsOnce sync.Once
+	flagsHelp []byte
 )
 
-// supportsLogRotation indica si el rclone instalado admite --log-file-max-size.
+// supportsFlag indica si el rclone instalado admite un flag de montaje.
 // Las versiones antiguas (las de algunos repos de distros) fallarían al montar
-// con un flag desconocido, así que lo comprobamos una vez y lo recordamos.
-func supportsLogRotation() bool {
-	logRotationOnce.Do(func() {
-		out, err := exec.Command("rclone", "help", "flags", "log-file").Output()
-		logRotationSupported = err == nil && bytes.Contains(out, []byte("--log-file-max-size"))
+// con un flag desconocido, así que leemos su ayuda una vez y la recordamos.
+func supportsFlag(flag string) bool {
+	flagsOnce.Do(func() {
+		out, err := exec.Command("rclone", "mount", "--help").Output()
+		if err == nil {
+			flagsHelp = out
+		}
+		global, err := exec.Command("rclone", "help", "flags").Output()
+		if err == nil {
+			flagsHelp = append(flagsHelp, global...)
+		}
 	})
-	return logRotationSupported
+	return bytes.Contains(flagsHelp, []byte(flag+" "))
 }
 
 func CreateConfig(name, provider string) error {
