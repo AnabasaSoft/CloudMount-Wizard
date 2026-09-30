@@ -8,6 +8,7 @@ import (
 	"image/color"
 	"io"
 	"log"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,14 +30,19 @@ import (
 	"github.com/anabasasoft/cloudmount-wizard/internal/rclone"
 	"github.com/anabasasoft/cloudmount-wizard/internal/settings"
 	"github.com/anabasasoft/cloudmount-wizard/internal/system"
+	"github.com/anabasasoft/cloudmount-wizard/internal/update"
 )
+
+// version la inyecta el workflow de release con -ldflags "-X main.version=1.2.3".
+// En las compilaciones locales vale "dev" y no se buscan actualizaciones.
+var version = "dev"
 
 func main() {
 	minimizedFlag := flag.Bool("minimized", false, "Iniciar minimizado")
 	flag.Parse()
 
 	setupAppLog()
-	log.Printf("CloudMount iniciado (minimizado: %v)", *minimizedFlag)
+	log.Printf("CloudMount %s iniciado (minimizado: %v)", version, *minimizedFlag)
 
 	myApp := app.NewWithID("com.anabasasoft.cloudmount")
 	myApp.SetIcon(resourceIconPng)
@@ -114,11 +120,70 @@ func main() {
 		myWindow.SetContent(container.NewCenter(content))
 	}
 
+	go startUpdateChecks(myApp, myWindow)
+
 	if *minimizedFlag {
 		myApp.Run()
 	} else {
 		myWindow.ShowAndRun()
 	}
+}
+
+// skippedVersionKey guarda en las preferencias la versión que el usuario pidió no volver a avisar
+const skippedVersionKey = "update_skipped_version"
+
+// startUpdateChecks busca versiones nuevas en GitHub al arrancar y después una vez al
+// día, porque la app puede pasar días abierta en la bandeja del sistema
+func startUpdateChecks(a fyne.App, w fyne.Window) {
+	if version == "dev" {
+		log.Printf("Compilación de desarrollo: no se buscan actualizaciones")
+		return
+	}
+
+	time.Sleep(10 * time.Second) // Dejamos que termine antes el automontaje
+	notified := ""               // Para no repetir el aviso de la misma versión en esta sesión
+	for {
+		rel, err := update.CheckLatest(version)
+		switch {
+		case err != nil:
+			log.Printf("No se pudo comprobar si hay actualizaciones: %v", err)
+		case rel != nil && rel.Tag != notified && rel.Tag != a.Preferences().String(skippedVersionKey):
+			notified = rel.Tag
+			log.Printf("Nueva versión disponible: %s", rel.Tag)
+			// Por si la app está minimizada en la bandeja y no se ve la ventana
+			a.SendNotification(fyne.NewNotification("CloudMount Wizard",
+				"Nueva versión disponible: "+rel.Tag))
+			fyne.Do(func() { showUpdateDialog(w, rel, true) })
+		}
+		time.Sleep(24 * time.Hour)
+	}
+}
+
+// showUpdateDialog avisa de una versión nueva con el enlace a su release.
+// Con allowSkip se ofrece no volver a avisar de esa versión.
+func showUpdateDialog(w fyne.Window, rel *update.Release, allowSkip bool) {
+	releaseURL, err := url.Parse(rel.URL)
+	if err != nil {
+		return
+	}
+	msg := widget.NewLabel(fmt.Sprintf("Hay una nueva versión de CloudMount Wizard: %s\n(tienes la %s).", rel.Tag, version))
+	content := container.NewVBox(msg, widget.NewHyperlink("Ver la release en GitHub", releaseURL))
+
+	checkSkip := widget.NewCheck("No volver a avisar de esta versión", nil)
+	if allowSkip {
+		content.Add(checkSkip)
+	}
+
+	dialog.ShowCustomConfirm("Nueva versión disponible", "Descargar", "Más tarde", content, func(ok bool) {
+		if checkSkip.Checked {
+			fyne.CurrentApp().Preferences().SetString(skippedVersionKey, rel.Tag)
+		}
+		if ok {
+			if err := fyne.CurrentApp().OpenURL(releaseURL); err != nil {
+				dialog.ShowError(err, w)
+			}
+		}
+	}, w)
 }
 
 // mountRemote monta una unidad; en Mega arranca antes el servidor y su WebDAV local
@@ -877,6 +942,30 @@ func ShowGlobalSettings() {
 		}
 	})
 
+	// Comprobación manual: avisa aunque se haya marcado "no volver a avisar"
+	btnUpdate := widget.NewButtonWithIcon("Buscar actualizaciones", theme.ViewRefreshIcon(), nil)
+	btnUpdate.OnTapped = func() {
+		if version == "dev" {
+			dialog.ShowInformation("Actualizaciones", "Esta es una compilación de desarrollo.", w)
+			return
+		}
+		btnUpdate.Disable()
+		go func() {
+			rel, err := update.CheckLatest(version)
+			fyne.Do(func() {
+				btnUpdate.Enable()
+				switch {
+				case err != nil:
+					dialog.ShowError(fmt.Errorf("No se pudo comprobar: %v", err), w)
+				case rel == nil:
+					dialog.ShowInformation("Actualizaciones", "Tienes la última versión ("+version+").", w)
+				default:
+					showUpdateDialog(w, rel, false)
+				}
+			})
+		}()
+	}
+
 	w.SetContent(container.NewVBox(
 		widget.NewLabelWithStyle("Configuracion del Sistema", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
 		widget.NewSeparator(),
@@ -885,6 +974,8 @@ func ShowGlobalSettings() {
 		checkMin,
 		widget.NewSeparator(),
 		lblState,
+		widget.NewSeparator(),
+		container.NewHBox(widget.NewLabel("Versión: "+version), layout.NewSpacer(), btnUpdate),
 		layout.NewSpacer(),
 		btnSave,
 	))

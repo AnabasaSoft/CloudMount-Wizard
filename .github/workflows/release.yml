@@ -47,7 +47,7 @@ jobs:
       # 1. BINARIO ESTÁNDAR (Standalone)
       - name: Compilar Binario Normal
         run: |
-          go build -ldflags "-s -w" -o CloudMount-Wizard ./cmd/cloudmount
+          go build -ldflags "-s -w -X main.version=${{ steps.get_version.outputs.VERSION }}" -o CloudMount-Wizard ./cmd/cloudmount
           tar -czvf cloudmount-linux-amd64.tar.gz CloudMount-Wizard
 
       # 2. AppImage usando herramientas externas
