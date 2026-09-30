@@ -70,7 +70,9 @@ func MountRemote(remoteName string) (string, error) {
 	// Si el usuario tiene activado el automontaje por Systemd, usamos el servicio
 	if IsAutomountEnabled(remoteName) {
 		// Usamos 'restart' para asegurar que levanta limpio después del pkill
-		exec.Command("systemctl", "--user", "restart", "rclone-"+remoteName+".service").Run()
+		if err := exec.Command("systemctl", "--user", "restart", "rclone-"+remoteName+".service").Run(); err != nil {
+			return "", fmt.Errorf("error al reiniciar el servicio rclone-%s: %v", remoteName, err)
+		}
 		return mountPoint, nil
 	}
 
@@ -96,14 +98,15 @@ func MountRemote(remoteName string) (string, error) {
 		args = append(args, "--bwlimit", opts.BwLimit)
 	}
 
-	if opts.RootFolderID != "" {
-		args = append(args, "--drive-root-folder-id", opts.RootFolderID)
+	// Con --daemon el proceso padre espera a que el montaje esté listo (--daemon-wait)
+	// y termina con el código de salida real. No capturamos stdout/stderr: el hijo
+	// demonizado heredaría la tubería y CombinedOutput no volvería nunca.
+	// Los detalles del error quedan en el fichero de log de la unidad.
+	cmd := exec.Command("rclone", args...)
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("rclone no pudo montar %s (%v).\nRevisa el log: %s", remoteName, err, GetLogFilePath(remoteName))
 	}
 
-	cmd := exec.Command("rclone", args...)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("error mount: %s", string(output))
-	}
 	return mountPoint, nil
 }
 
@@ -136,10 +139,6 @@ func EnableAutomount(remoteName string) error {
 	}
 	if opts.BwLimit != "" {
 		flags += " --bwlimit " + opts.BwLimit
-	}
-
-	if opts.RootFolderID != "" {
-		flags += " --drive-root-folder-id " + opts.RootFolderID
 	}
 
 	serviceContent := fmt.Sprintf(`[Unit]

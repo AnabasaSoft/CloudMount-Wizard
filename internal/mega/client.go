@@ -9,14 +9,22 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall" // CLAVE: Necesario para desacoplar el proceso (Setsid: true)
 "time"    // Necesario para esperar el arranque del servidor
 )
 
+// daemonMu evita que dos llamadas simultáneas lancen dos servidores a la vez
+var daemonMu sync.Mutex
+
 // EnsureDaemon asegura que el servidor de Mega esté corriendo independiente de la App
 func EnsureDaemon() error {
-	// 1. Probamos si ya responde (para no lanzar otro proceso)
-	if err := exec.Command("mega-whoami").Run(); err == nil {
+	daemonMu.Lock()
+	defer daemonMu.Unlock()
+
+	// 1. Comprobamos si el proceso ya existe (para no lanzar otro).
+	// No vale mega-whoami: también falla con el servidor en marcha si no hay sesión.
+	if exec.Command("pgrep", "-x", "mega-cmd-server").Run() == nil {
 		return nil // Ya está corriendo
 	}
 
