@@ -131,8 +131,19 @@ func CreateConfig(name, provider string) error {
 	return nil
 }
 
+// CreateConfigWithOpts crea un remote con las opciones dadas. Si hay "pass", se
+// ofusca antes pasándola por stdin, para que la contraseña en claro no aparezca
+// en la línea de comandos (visible con ps para cualquier usuario del equipo)
 func CreateConfigWithOpts(name, provider string, opts map[string]string) error {
 	args := []string{"config", "create", name, provider}
+	if pass, ok := opts["pass"]; ok && pass != "" {
+		obscured, err := obscurePassword(pass)
+		if err != nil {
+			return err
+		}
+		opts["pass"] = obscured
+		args = append(args, "--no-obscure")
+	}
 	for key, value := range opts {
 		args = append(args, fmt.Sprintf("%s=%s", key, value))
 	}
@@ -141,6 +152,17 @@ func CreateConfigWithOpts(name, provider string, opts map[string]string) error {
 		return fmt.Errorf("err: %s", string(out))
 	}
 	return nil
+}
+
+// obscurePassword ofusca una contraseña con "rclone obscure -", que la lee de stdin
+func obscurePassword(pass string) (string, error) {
+	cmd := exec.Command("rclone", "obscure", "-")
+	cmd.Stdin = strings.NewReader(pass)
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("error ofuscando la contraseña: %v", err)
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 func ListRemotes() ([]string, error) {
@@ -187,16 +209,27 @@ func FormatBytes(size int64) string {
 
 func UnmountRemote(remoteName string) error {
 	mountPoint := GetMountPath(remoteName)
-	if exec.Command("fusermount", "-u", mountPoint).Run() != nil {
-		exec.Command("fusermount", "-u", "-z", mountPoint).Run()
+	if !IsMounted(mountPoint) {
+		return nil // Nada que desmontar
+	}
+	if exec.Command("fusermount", "-u", mountPoint).Run() == nil {
+		return nil
+	}
+	// Si está ocupado, desmontaje "lazy": se completa cuando se libere
+	if out, err := exec.Command("fusermount", "-u", "-z", mountPoint).CombinedOutput(); err != nil {
+		return fmt.Errorf("no se pudo desmontar %s: %s", remoteName, strings.TrimSpace(string(out)))
 	}
 	return nil
 }
 
 func DeleteRemote(remoteName string) error {
-	UnmountRemote(remoteName)
-	exec.Command("rclone", "config", "delete", remoteName).Run()
-	os.Remove(GetMountPath(remoteName))
+	if err := UnmountRemote(remoteName); err != nil {
+		return err // No borramos la configuración de una unidad que sigue montada
+	}
+	if out, err := exec.Command("rclone", "config", "delete", remoteName).CombinedOutput(); err != nil {
+		return fmt.Errorf("no se pudo eliminar %s de rclone: %s", remoteName, strings.TrimSpace(string(out)))
+	}
+	os.Remove(GetMountPath(remoteName)) // Solo borra la carpeta si está vacía
 	os.Remove(GetLogFilePath(remoteName))
 	return settings.DeleteOptions(remoteName)
 }

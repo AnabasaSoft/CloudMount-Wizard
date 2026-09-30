@@ -42,9 +42,6 @@ func main() {
 	myApp.SetIcon(resourceIconPng)
 	myApp.Settings().SetTheme(&myTheme{})
 
-	// Persistencia Mega
-	go mega.EnsureDaemon()
-
 	myWindow := myApp.NewWindow("CloudMount Wizard")
 	myWindow.Resize(fyne.NewSize(850, 650))
 
@@ -75,6 +72,13 @@ func main() {
 			remotes, err := rclone.ListRemotes()
 			if err != nil {
 				return // Si falla, no pasa nada
+			}
+
+			// Persistencia Mega: solo arrancamos su servidor si hay una unidad Mega
+			for _, r := range remotes {
+				if r == "Mega" {
+					go mega.EnsureDaemon()
+				}
 			}
 
 			// Automontaje en paralelo
@@ -377,7 +381,7 @@ func renderDashboard(w fyne.Window, states []remoteState) {
 	title := widget.NewLabelWithStyle("Mis Unidades", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	addBtn := widget.NewButtonWithIcon("Nueva", theme.ContentAddIcon(), func() { ShowCloudSelection(w) })
 	logBtn := widget.NewButtonWithIcon("Logs", theme.VisibilityIcon(), ShowLogViewer)
-	configBtn := widget.NewButtonWithIcon("", theme.SettingsIcon(), func() { ShowGlobalSettings(w) })
+	configBtn := widget.NewButtonWithIcon("", theme.SettingsIcon(), ShowGlobalSettings)
 
 	listContainer := container.NewVBox()
 
@@ -406,12 +410,13 @@ func renderDashboard(w fyne.Window, states []remoteState) {
 			statusIcon = theme.InfoIcon()
 		}
 
-		// Calculo de espacio (asincrono)
+		// Calculo de espacio (asincrono). Sin montar ni sesión no hay datos que pedir
 		quotaTxt := binding.NewString()
-		quotaTxt.Set("...")
+		quotaTxt.Set("—")
 		quotaVal := binding.NewFloat()
 
 		if isMounted || st.megaSession {
+			quotaTxt.Set("Calculando...")
 			go func() {
 				if isMega {
 					used, total, err := mega.GetSpace()
@@ -430,7 +435,7 @@ func renderDashboard(w fyne.Window, states []remoteState) {
 						quotaVal.Set(float64(q.Used) / float64(q.Total))
 					})
 				} else {
-					fyne.Do(func() { quotaTxt.Set("Calculando...") })
+					fyne.Do(func() { quotaTxt.Set("—") })
 				}
 			}()
 		}
@@ -450,9 +455,18 @@ func renderDashboard(w fyne.Window, states []remoteState) {
 
 		btnUnmount := widget.NewButton("Desmontar", func() {
 			go func() {
-				rclone.UnmountRemote(name)
-				log.Printf("Desmontado %s", name)
-				fyne.Do(func() { ShowDashboard(w) })
+				err := rclone.UnmountRemote(name)
+				if err != nil {
+					log.Printf("Error desmontando %s: %v", name, err)
+				} else {
+					log.Printf("Desmontado %s", name)
+				}
+				fyne.Do(func() {
+					ShowDashboard(w)
+					if err != nil {
+						dialog.ShowError(err, w)
+					}
+				})
 			}()
 		})
 
@@ -528,12 +542,18 @@ func renderDashboard(w fyne.Window, states []remoteState) {
 						if isMega {
 							mega.Logout()
 						}
-						if err := rclone.DeleteRemote(name); err != nil {
+						err := rclone.DeleteRemote(name)
+						if err != nil {
 							log.Printf("Error eliminando %s: %v", name, err)
 						} else {
 							log.Printf("Eliminada la unidad %s", name)
 						}
-						fyne.Do(func() { ShowDashboard(w) })
+						fyne.Do(func() {
+							ShowDashboard(w)
+							if err != nil {
+								dialog.ShowError(err, w)
+							}
+						})
 					}()
 				}
 			}, w)
@@ -599,11 +619,9 @@ func ShowCloudSelection(w fyne.Window) {
 			}, w)
 		} else if strings.HasPrefix(val, "ERROR:") {
 			log.Printf("Error creando unidad: %s", val[6:])
-			fyne.Do(func() {
-				// Volvemos a la lista: configureOAuth deja la ventana en "Autorizando..." sin botones
-				ShowCloudSelection(w)
-				dialog.ShowError(errors.New(val[6:]), w)
-			})
+			// Volvemos a la lista: configureOAuth deja la ventana en "Autorizando..." sin botones
+			ShowCloudSelection(w)
+			dialog.ShowError(errors.New(val[6:]), w)
 		}
 	}))
 
@@ -817,7 +835,7 @@ func (m myTheme) Icon(n fyne.ThemeIconName) fyne.Resource { return theme.Default
 func (m myTheme) Font(s fyne.TextStyle) fyne.Resource     { return theme.DefaultTheme().Font(s) }
 func (m myTheme) Size(n fyne.ThemeSizeName) float32       { return theme.DefaultTheme().Size(n) }
 
-func ShowGlobalSettings(parent fyne.Window) {
+func ShowGlobalSettings() {
 	w := fyne.CurrentApp().NewWindow("Preferencias")
 	w.Resize(fyne.NewSize(400, 300))
 
