@@ -246,8 +246,13 @@ func IsMounted(path string) bool {
 	if err != nil {
 		return false
 	}
+	return isMountedIn(string(content), path)
+}
+
+// isMountedIn busca path como punto de montaje en el contenido de /proc/mounts
+func isMountedIn(mounts, path string) bool {
 	target := filepath.Clean(path)
-	for _, line := range strings.Split(string(content), "\n") {
+	for _, line := range strings.Split(mounts, "\n") {
 		fields := strings.Fields(line)
 		if len(fields) >= 2 && unescapeMountPath(fields[1]) == target {
 			return true

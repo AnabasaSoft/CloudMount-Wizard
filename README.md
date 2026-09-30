@@ -71,7 +71,7 @@ Con CloudMount Wizard puedes:
 <a id="instalacion"></a>
 ## 📦 Instalación
 
-Descarga el paquete de tu distribución desde la [última release](https://github.com/AnabasaSoft/CloudMount-Wizard/releases/latest). En los comandos de abajo, cambia `VERSION` por la versión que quieras instalar.
+Descarga el paquete de tu distribución desde la [última release](https://github.com/AnabasaSoft/CloudMount-Wizard/releases/latest). Los comandos de abajo descargan siempre la **última versión** (la primera línea la consulta en GitHub).
 
 > 🔏 Los paquetes `.deb` y `.rpm` están **firmados con la clave GPG de AnabasaSoft** ([`firma/anabasasoft_public.asc`](firma/anabasasoft_public.asc), huella `FBFF BB1A DAA6 F42A 0520  65F7 2737 A9E2 209A 05C2`). Importarla permite comprobar que el paquete es original y no ha sido modificado.
 >
@@ -80,7 +80,7 @@ Descarga el paquete de tu distribución desde la [última release](https://githu
 #### Ubuntu / Debian / Linux Mint
 
 ```bash
-VERSION=1.3.0
+VERSION=$(curl -s https://api.github.com/repos/AnabasaSoft/CloudMount-Wizard/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p')
 wget https://github.com/AnabasaSoft/CloudMount-Wizard/releases/download/v${VERSION}/cloudmount-wizard_${VERSION}_amd64.deb
 
 # Opcional: verificar la firma antes de instalar (requiere el paquete dpkg-sig)
@@ -95,7 +95,7 @@ sudo apt install rclone fuse3
 #### Fedora
 
 ```bash
-VERSION=1.3.0
+VERSION=$(curl -s https://api.github.com/repos/AnabasaSoft/CloudMount-Wizard/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p')
 curl -sL https://raw.githubusercontent.com/AnabasaSoft/CloudMount-Wizard/main/firma/anabasasoft_public.asc -o /tmp/anabasasoft_public.asc
 sudo rpm --import /tmp/anabasasoft_public.asc
 sudo dnf install https://github.com/AnabasaSoft/CloudMount-Wizard/releases/download/v${VERSION}/cloudmount-wizard-${VERSION}-1.x86_64.rpm
@@ -105,7 +105,7 @@ sudo dnf install rclone fuse3
 #### openSUSE
 
 ```bash
-VERSION=1.3.0
+VERSION=$(curl -s https://api.github.com/repos/AnabasaSoft/CloudMount-Wizard/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p')
 wget https://github.com/AnabasaSoft/CloudMount-Wizard/releases/download/v${VERSION}/cloudmount-wizard-${VERSION}-1.x86_64.rpm
 curl -sL https://raw.githubusercontent.com/AnabasaSoft/CloudMount-Wizard/main/firma/anabasasoft_public.asc -o /tmp/anabasasoft_public.asc
 sudo rpm --import /tmp/anabasasoft_public.asc
@@ -195,7 +195,8 @@ sudo pacman -S base-devel libgl libxcursor libxrandr libxinerama libxi libxxf86v
 ```bash
 git clone https://github.com/AnabasaSoft/CloudMount-Wizard.git
 cd CloudMount-Wizard
-go build -ldflags "-s -w -X main.version=1.3.0" -o CloudMount-Wizard ./cmd/cloudmount
+VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//')
+go build -ldflags "-s -w -X main.version=$VERSION" -o CloudMount-Wizard ./cmd/cloudmount
 ./CloudMount-Wizard
 ```
 

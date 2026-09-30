@@ -3,3 +3,6 @@ actualiza.sh
 .serena/
 /pkill
 /cloudmount
+
+# Tests: solo en local, no se suben al repositorio
+*_test.go
