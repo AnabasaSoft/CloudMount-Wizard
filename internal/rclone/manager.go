@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -128,7 +129,8 @@ func EnableAutomount(remoteName string) error {
 		fuserBin = "/bin/fusermount"
 	}
 
-	flags := fmt.Sprintf("--vfs-cache-mode full --no-checksum --no-modtime --volname %s", remoteName)
+	flags := fmt.Sprintf("--vfs-cache-mode full --no-checksum --no-modtime --volname %s --log-level INFO --log-file %s",
+		remoteName, GetLogFilePath(remoteName))
 
 	opts := settings.GetOptions(remoteName)
 	if opts.ReadOnly {
@@ -260,7 +262,8 @@ func DeleteRemote(remoteName string) error {
 	UnmountRemote(remoteName)
 	exec.Command("rclone", "config", "delete", remoteName).Run()
 	os.Remove(GetMountPath(remoteName))
-	return nil
+	os.Remove(GetLogFilePath(remoteName))
+	return settings.DeleteOptions(remoteName)
 }
 
 func getServicePath(remoteName string) string {
@@ -283,31 +286,41 @@ func DisableAutomount(remoteName string) error {
 	return nil
 }
 
+// IsMounted comprueba si path es exactamente un punto de montaje activo.
+// Compara el campo completo de /proc/mounts: buscar subcadenas confundía
+// ~/Nubes/Drive con ~/Nubes/Drive2 o con ~/Nubes/GoogleDrive.
 func IsMounted(path string) bool {
-	// Método 1: Verificar con mountpoint (más confiable)
-	cmd := exec.Command("mountpoint", "-q", path)
-	if cmd.Run() == nil {
-		return true
-	}
-
-	// Método 2: Buscar en /proc/mounts
 	content, err := os.ReadFile("/proc/mounts")
-	if err == nil {
-		// Buscamos tanto el path completo como normalizado
-		mounts := string(content)
-		if strings.Contains(mounts, path) {
-			return true
-		}
-		// Intentar con path normalizado (sin trailing slash)
-		cleanPath := strings.TrimSuffix(path, "/")
-		if strings.Contains(mounts, cleanPath) {
+	if err != nil {
+		return false
+	}
+	target := filepath.Clean(path)
+	for _, line := range strings.Split(string(content), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) >= 2 && unescapeMountPath(fields[1]) == target {
 			return true
 		}
 	}
+	return false
+}
 
-	// Método 3: Verificar si hay proceso rclone montando este path
-	cmd = exec.Command("pgrep", "-f", "rclone.*"+filepath.Base(path))
-	return cmd.Run() == nil
+// unescapeMountPath deshace los escapes octales de /proc/mounts (\040 = espacio, etc.)
+func unescapeMountPath(s string) string {
+	if !strings.Contains(s, `\`) {
+		return s
+	}
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+4 <= len(s) {
+			if c, err := strconv.ParseUint(s[i+1:i+4], 8, 8); err == nil {
+				b.WriteByte(byte(c))
+				i += 3
+				continue
+			}
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
 }
 
 func OpenFileManager(path string) {

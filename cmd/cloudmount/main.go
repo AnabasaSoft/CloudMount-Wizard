@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"image/color"
@@ -74,11 +75,14 @@ func main() {
 			}
 
 			// Automontaje en paralelo
+			var wg sync.WaitGroup
 			for _, rName := range remotes {
 				opts := settings.GetOptions(rName)
 				if opts.MountOnStart {
 					// Lanzar cada montaje en su propia goroutine
+					wg.Add(1)
 					go func(name string) {
+						defer wg.Done()
 						// Preparacion especial para Mega
 						if name == "Mega" {
 							_ = mega.EnsureDaemon()
@@ -95,8 +99,8 @@ func main() {
 				}
 			}
 
-			// Refrescar UI después de 2 segundos para mostrar estados actualizados
-			time.Sleep(2 * time.Second)
+			// Refrescar UI cuando hayan terminado todos los montajes
+			wg.Wait()
 			fyne.Do(func() {
 				ShowDashboard(myWindow)
 			})
@@ -362,26 +366,28 @@ func ShowDashboard(w fyne.Window) {
 			entryBw.Text = opts.BwLimit
 			entryBw.PlaceHolder = "Ej: 2M"
 
-			checkAutoInfo := widget.NewCheck("Automontar al inicio", nil)
-			checkAutoInfo.Checked = opts.MountOnStart
-			checkAutoInfo.Disable()
+			checkAutoMount := widget.NewCheck("Montar al abrir CloudMount", nil)
+			checkAutoMount.Checked = opts.MountOnStart
 
 			items := []*widget.FormItem{
 				widget.NewFormItem("Solo Lectura:", checkRead),
 							widget.NewFormItem("Limite Cache:", entryCache),
 							widget.NewFormItem("Ancho Banda:", entryBw),
-							widget.NewFormItem("Estado:", checkAutoInfo),
+							widget.NewFormItem("Automontaje:", checkAutoMount),
 			}
 
 			d := dialog.NewForm("Ajustes "+displayName, "Guardar", "Cancelar", items, func(ok bool) {
 				if ok {
-					currentOpts := settings.GetOptions(name)
-					settings.SetOptions(name, settings.RemoteOptions{
-						ReadOnly:     checkRead.Checked,
-						CacheSize:    entryCache.Text,
-						BwLimit:      entryBw.Text,
-						MountOnStart: currentOpts.MountOnStart,
-					})
+					// Partimos de las opciones guardadas para no perder campos que no están en el formulario
+					newOpts := settings.GetOptions(name)
+					newOpts.ReadOnly = checkRead.Checked
+					newOpts.CacheSize = strings.TrimSpace(entryCache.Text)
+					newOpts.BwLimit = strings.TrimSpace(entryBw.Text)
+					newOpts.MountOnStart = checkAutoMount.Checked
+					if err := settings.SetOptions(name, newOpts); err != nil {
+						dialog.ShowError(err, w)
+						return
+					}
 
 					if isMounted {
 						dialog.ShowInformation("Cambios", "Desmonta y monta la unidad para aplicar los limites.", w)
@@ -473,7 +479,7 @@ func ShowCloudSelection(w fyne.Window) {
 				}
 			}, w)
 		} else if strings.HasPrefix(val, "ERROR:") {
-			fyne.Do(func() { dialog.ShowError(apiError(val[6:]), w) })
+			fyne.Do(func() { dialog.ShowError(errors.New(val[6:]), w) })
 		}
 	}))
 
@@ -530,13 +536,19 @@ func ShowCloudSelection(w fyne.Window) {
 						})
 						return
 					}
+					// El WebDAV local de MEGAcmd no pide autenticación: no guardamos
+					// el email ni la contraseña en rclone.conf
 					opts := map[string]string{
 						"url":    webdavURL,
 						"vendor": "other",
-						"user":   strings.TrimSpace(entryUser.Text),
-				    "pass":   strings.TrimSpace(entryPass.Text),
 					}
-					rclone.CreateConfigWithOpts("Mega", "webdav", opts)
+					if err := rclone.CreateConfigWithOpts("Mega", "webdav", opts); err != nil {
+						fyne.Do(func() {
+							ShowCloudSelection(w)
+							dialog.ShowError(fmt.Errorf("Error guardando configuracion: %v", err), w)
+						})
+						return
+					}
 
 					fyne.Do(func() {
 						dialog.ShowInformation("Conectado", "Mega configurado.", w)
@@ -657,8 +669,6 @@ func ShowCloudSelection(w fyne.Window) {
 	w.SetContent(container.NewBorder(nil, nil, nil, nil, container.NewPadded(container.NewVScroll(cloudList))))
 }
 
-func apiError(msg string) error { return fmt.Errorf(msg) }
-
 type myTheme struct{}
 
 var _ fyne.Theme = (*myTheme)(nil)
@@ -690,6 +700,7 @@ func ShowGlobalSettings(parent fyne.Window) {
 	checkAuto.Checked = isAutostart
 
 	checkMin := widget.NewCheck("Iniciar minimizado (silencioso)", nil)
+	checkMin.Checked = isAutostart && system.IsAutostartMinimized()
 	checkMin.Disable()
 
 	if isAutostart {

@@ -3,6 +3,7 @@ package system
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"text/template"
 )
 
@@ -95,4 +96,17 @@ func IsAutostartEnabled() bool {
 	}
 	_, err = os.Stat(path)
 	return err == nil
+}
+
+// IsAutostartMinimized indica si el autoarranque está configurado con --minimized
+func IsAutostartMinimized() bool {
+	path, err := getAutostartPath()
+	if err != nil {
+		return false
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(content), "--minimized")
 }

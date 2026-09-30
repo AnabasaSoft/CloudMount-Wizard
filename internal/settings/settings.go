@@ -46,6 +46,18 @@ func SetOptions(remoteName string, opts RemoteOptions) error {
 	return save()
 }
 
+// DeleteOptions elimina las opciones guardadas de un remote
+func DeleteOptions(remoteName string) error {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	if _, ok := current.Remotes[remoteName]; !ok {
+		return nil
+	}
+	delete(current.Remotes, remoteName)
+	return save()
+}
+
 // Helpers individuales para compatibilidad (opcional, pero útil)
 func GetReadOnly(remoteName string) bool { return GetOptions(remoteName).ReadOnly }
 
