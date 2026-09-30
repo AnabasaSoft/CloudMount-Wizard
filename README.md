@@ -12,7 +12,7 @@
 [![Linux](https://img.shields.io/badge/Platform-Linux-FCC624?style=flat-square&logo=linux&logoColor=black)](https://www.linux.org/)
 [![Release](https://img.shields.io/github/v/release/AnabasaSoft/CloudMount-Wizard?style=flat-square)](https://github.com/AnabasaSoft/CloudMount-Wizard/releases/latest)
 
-[Características](#caracteristicas) • [Instalación](#instalacion) • [Uso](#uso) • [Nubes soportadas](#nubes-soportadas) • [Configuración](#configuracion) • [Contribuir](#contribuir)
+[Características](#caracteristicas) • [Instalación](#instalacion) • [Uso](#uso) • [Nubes soportadas](#nubes-soportadas) • [Configuración](#configuracion) • [Rendimiento](#rendimiento) • [Contribuir](#contribuir)
 
 ---
 
@@ -54,6 +54,7 @@ Con CloudMount Wizard puedes:
 - **Arranque con la sesión**: la aplicación puede iniciarse al entrar en el escritorio, también minimizada en la bandeja
 - **Opciones por unidad**: solo lectura, límite de caché en disco y límite de ancho de banda
 - **Espacio en disco**: uso y capacidad de cada nube montada
+- **Navegación rápida**: caché de carpetas y descargas en paralelo ajustadas al tipo de nube
 - **Visor de logs**: registro en tiempo real de cada unidad y un log global con la actividad de la aplicación
 - **Aviso de nuevas versiones**: CloudMount te avisa cuando hay una release nueva en GitHub, con el enlace para descargarla
 
@@ -292,6 +293,41 @@ Si la unidad está montada, los cambios se aplican al desmontarla y volver a mon
 | Arranque automático | `~/.config/autostart/com.anabasasoft.cloudmount.desktop` |
 
 Los logs de cada unidad rotan al llegar a 5 MB.
+
+---
+
+<a id="rendimiento"></a>
+## ⚡ Rendimiento y solución de problemas
+
+### Lo que CloudMount ya hace por ti
+
+- **Caché de carpetas**: en Google Drive, Dropbox, OneDrive y Box (las nubes que avisan de los cambios), el contenido de las carpetas se guarda en memoria y se recorre en segundo plano al montar, así que navegar es casi instantáneo. En el resto (Mega, WebDAV, S3…) la caché dura 30 minutos: lo que cambies desde otro dispositivo puede tardar ese tiempo en aparecer, pero lo que cambies en la propia carpeta montada se ve al momento.
+- **Operaciones en paralelo**: hasta 8 subidas simultáneas y descarga de los ficheros grandes en varios trozos a la vez.
+
+### Si el gestor de archivos va lento, se queda «sin responder» o falla
+
+Para el gestor de archivos, una nube montada es un disco local más. Por eso, al entrar en una carpeta intenta **generar miniaturas** y **contar los elementos de cada subcarpeta**, y eso obliga a descargar ficheros de la nube. Si notas lag, bloqueos o errores al navegar por `~/Nubes`, desactiva esas opciones:
+
+**Dolphin (KDE)**
+- *Configurar Dolphin → Interfaz → Vistas previas*: desmarca **«Carpetas»** (para hacer la miniatura de una carpeta, Dolphin abre los ficheros que contiene) y pon un límite bajo en **«Omitir vistas previas de archivos locales de más de…»**, por ejemplo 5 MB.
+- *Configurar Dolphin → Modos de vista → Detalles*: pon **«Tamaño de las carpetas»** en *Ninguno*.
+
+**Archivos / Nautilus (GNOME)**
+- *Preferencias → Rendimiento*: pon **«Mostrar miniaturas»** y **«Contar el número de archivos en las carpetas»** en *Nunca*. La opción «Solo en este equipo» no basta, porque las nubes montadas cuentan como locales.
+
+**Nemo (Cinnamon)**
+- *Editar → Preferencias → Vista previa*: pon **«Mostrar miniaturas»** y **«Contar el número de elementos de las carpetas»** en *Nunca*.
+
+**Thunar (Xfce)**
+- *Editar → Preferencias → Visualización*: pon **«Mostrar miniaturas»** en *Nunca*.
+
+**Indexadores de archivos**
+
+Los indexadores leen el contenido de todos los ficheros, lo que en una nube supone descargarlo todo. Asegúrate de que `~/Nubes` está excluida:
+- **Baloo (KDE)**: *Preferencias del sistema → Búsqueda → Búsqueda de archivos → Carpetas excluidas*, o bien `balooctl6 config add excludeFolders ~/Nubes`.
+- **LocalSearch / Tracker (GNOME)**: *Configuración → Buscar → Ubicaciones de búsqueda*, y quita `~/Nubes` si aparece.
+
+> Si tras estos ajustes sigue habiendo problemas, abre el **visor de logs** de la unidad: ahí verás los errores de rclone (por ejemplo, límites de peticiones de la nube o cortes de red).
 
 ---
 
