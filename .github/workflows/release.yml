@@ -21,7 +21,7 @@ jobs:
       - name: Configurar Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version-file: go.mod
           cache: true
 
       # PRIMERO: Descargar dependencias del proyecto
@@ -146,6 +146,7 @@ jobs:
           EOF
 
           fpm -s dir -t rpm -n cloudmount-wizard -v ${{ steps.get_version.outputs.VERSION }} \
+            --rpm-rpmbuild-define "_build_id_links none" \
             --description "CloudMount Wizard - Mount cloud storage as local drives" \
             --url "https://github.com/AnabasaSoft/CloudMount-Wizard" \
             --maintainer "AnabasaSoft" \

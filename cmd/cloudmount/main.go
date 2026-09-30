@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"flag"
 	"fmt"
 	"image/color"
+	"io"
 	"os"
 	"strings"
 	"sync"
@@ -142,6 +144,37 @@ func installRclone(w fyne.Window) {
 	}()
 }
 
+// readTail devuelve como mucho los últimos maxBytes del fichero, empezando en una
+// línea completa, para no leer entero un log de varios MB cada segundo
+func readTail(path string, maxBytes int64) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	offset := info.Size() - maxBytes
+	if offset <= 0 {
+		return io.ReadAll(f)
+	}
+	if _, err := f.Seek(offset, io.SeekStart); err != nil {
+		return nil, err
+	}
+	content, err := io.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+	// Descartamos la primera línea, que casi seguro está cortada
+	if i := bytes.IndexByte(content, '\n'); i >= 0 {
+		content = content[i+1:]
+	}
+	return content, nil
+}
+
 // ShowLogViewer muestra la ventana de logs con selector de unidad
 func ShowLogViewer() {
 	logContent := widget.NewMultiLineEntry()
@@ -164,7 +197,7 @@ func ShowLogViewer() {
 		path := logPath
 		pathMu.Unlock()
 
-		content, err := os.ReadFile(path)
+		content, err := readTail(path, 256*1024)
 		if err != nil {
 			msg := "Esperando logs..."
 			if !os.IsNotExist(err) {
@@ -523,7 +556,11 @@ func ShowCloudSelection(w fyne.Window) {
 				}
 			}, w)
 		} else if strings.HasPrefix(val, "ERROR:") {
-			fyne.Do(func() { dialog.ShowError(errors.New(val[6:]), w) })
+			fyne.Do(func() {
+				// Volvemos a la lista: configureOAuth deja la ventana en "Autorizando..." sin botones
+				ShowCloudSelection(w)
+				dialog.ShowError(errors.New(val[6:]), w)
+			})
 		}
 	}))
 
@@ -622,7 +659,8 @@ func ShowCloudSelection(w fyne.Window) {
 		}, w)
 	}
 
-	configureManual := func(title, provider string) {
+	// configureManual da de alta un remote WebDAV; vendor es "nextcloud" u "other"
+	configureManual := func(title, vendor string) {
 		entryName := widget.NewEntry()
 		entryURL := widget.NewEntry()
 		entryURL.PlaceHolder = "https://..."
@@ -639,13 +677,10 @@ func ShowCloudSelection(w fyne.Window) {
 					"url":    entryURL.Text,
 					"user":   entryUser.Text,
 					"pass":   entryPass.Text,
-					"vendor": "other",
-				}
-				if provider == "nextcloud" {
-					opts["vendor"] = "nextcloud"
+					"vendor": vendor,
 				}
 				go func() {
-					if err := rclone.CreateConfigWithOpts(entryName.Text, provider, opts); err != nil {
+					if err := rclone.CreateConfigWithOpts(entryName.Text, "webdav", opts); err != nil {
 						configState.Set("ERROR:" + err.Error())
 					} else {
 						configState.Set("DONE:" + entryName.Text)
@@ -703,8 +738,8 @@ func ShowCloudSelection(w fyne.Window) {
 		widget.NewLabelWithStyle("Avanzado", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
 		widget.NewButtonWithIcon("pCloud", theme.StorageIcon(), func() { configureOAuth("pCloud", "pcloud") }),
 		widget.NewButtonWithIcon("Box", theme.ContentCopyIcon(), func() { configureOAuth("Box", "box") }),
-		widget.NewButtonWithIcon("Nextcloud", theme.ComputerIcon(), func() { configureManual("Nextcloud", "webdav") }),
-		widget.NewButtonWithIcon("WebDAV", theme.FileIcon(), func() { configureManual("WebDAV", "webdav") }),
+		widget.NewButtonWithIcon("Nextcloud", theme.ComputerIcon(), func() { configureManual("Nextcloud", "nextcloud") }),
+		widget.NewButtonWithIcon("WebDAV", theme.FileIcon(), func() { configureManual("WebDAV", "other") }),
 		widget.NewButtonWithIcon("S3 / AWS", theme.SettingsIcon(), configureS3),
 		widget.NewSeparator(),
 		widget.NewButtonWithIcon("Volver", theme.CancelIcon(), func() { ShowDashboard(w) }),

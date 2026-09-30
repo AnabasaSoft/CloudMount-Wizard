@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/anabasasoft/cloudmount-wizard/internal/settings"
@@ -88,6 +89,10 @@ func MountRemote(remoteName string) (string, error) {
 	if opts.BwLimit != "" {
 		args = append(args, "--bwlimit", opts.BwLimit)
 	}
+	if supportsLogRotation() {
+		// Rotamos el log para que no crezca sin límite (con INFO llega a decenas de MB)
+		args = append(args, "--log-file-max-size", "5M", "--log-file-max-backups", "1")
+	}
 
 	// Con --daemon el proceso padre espera a que el montaje esté listo (--daemon-wait)
 	// y termina con el código de salida real. No capturamos stdout/stderr: el hijo
@@ -99,6 +104,22 @@ func MountRemote(remoteName string) (string, error) {
 	}
 
 	return mountPoint, nil
+}
+
+var (
+	logRotationOnce      sync.Once
+	logRotationSupported bool
+)
+
+// supportsLogRotation indica si el rclone instalado admite --log-file-max-size.
+// Las versiones antiguas (las de algunos repos de distros) fallarían al montar
+// con un flag desconocido, así que lo comprobamos una vez y lo recordamos.
+func supportsLogRotation() bool {
+	logRotationOnce.Do(func() {
+		out, err := exec.Command("rclone", "help", "flags", "log-file").Output()
+		logRotationSupported = err == nil && bytes.Contains(out, []byte("--log-file-max-size"))
+	})
+	return logRotationSupported
 }
 
 func CreateConfig(name, provider string) error {
