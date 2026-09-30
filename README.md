@@ -73,11 +73,21 @@ Con CloudMount Wizard puedes:
 
 Descarga el paquete de tu distribución desde la [última release](https://github.com/AnabasaSoft/CloudMount-Wizard/releases/latest). En los comandos de abajo, cambia `VERSION` por la versión que quieras instalar.
 
+> 🔏 Los paquetes `.deb` y `.rpm` están **firmados con la clave GPG de AnabasaSoft** ([`firma/anabasasoft_public.asc`](firma/anabasasoft_public.asc), huella `FBFF BB1A DAA6 F42A 0520  65F7 2737 A9E2 209A 05C2`). Importarla permite comprobar que el paquete es original y no ha sido modificado.
+>
+> Descarga la clave a un fichero antes de importarla: algunas versiones de `rpm` fallan si se les pasa por la entrada estándar (`curl | rpm --import -`).
+
 #### Ubuntu / Debian / Linux Mint
 
 ```bash
 VERSION=1.3.0
 wget https://github.com/AnabasaSoft/CloudMount-Wizard/releases/download/v${VERSION}/cloudmount-wizard_${VERSION}_amd64.deb
+
+# Opcional: verificar la firma antes de instalar (requiere el paquete dpkg-sig)
+curl -sL https://raw.githubusercontent.com/AnabasaSoft/CloudMount-Wizard/main/firma/anabasasoft_public.asc -o /tmp/anabasasoft_public.asc
+gpg --import /tmp/anabasasoft_public.asc
+dpkg-sig --verify cloudmount-wizard_${VERSION}_amd64.deb
+
 sudo apt install ./cloudmount-wizard_${VERSION}_amd64.deb
 sudo apt install rclone fuse3
 ```
@@ -86,6 +96,8 @@ sudo apt install rclone fuse3
 
 ```bash
 VERSION=1.3.0
+curl -sL https://raw.githubusercontent.com/AnabasaSoft/CloudMount-Wizard/main/firma/anabasasoft_public.asc -o /tmp/anabasasoft_public.asc
+sudo rpm --import /tmp/anabasasoft_public.asc
 sudo dnf install https://github.com/AnabasaSoft/CloudMount-Wizard/releases/download/v${VERSION}/cloudmount-wizard-${VERSION}-1.x86_64.rpm
 sudo dnf install rclone fuse3
 ```
@@ -95,7 +107,9 @@ sudo dnf install rclone fuse3
 ```bash
 VERSION=1.3.0
 wget https://github.com/AnabasaSoft/CloudMount-Wizard/releases/download/v${VERSION}/cloudmount-wizard-${VERSION}-1.x86_64.rpm
-sudo zypper install --allow-unsigned-rpm ./cloudmount-wizard-${VERSION}-1.x86_64.rpm
+curl -sL https://raw.githubusercontent.com/AnabasaSoft/CloudMount-Wizard/main/firma/anabasasoft_public.asc -o /tmp/anabasasoft_public.asc
+sudo rpm --import /tmp/anabasasoft_public.asc
+sudo zypper install ./cloudmount-wizard-${VERSION}-1.x86_64.rpm
 sudo zypper install rclone fuse3
 ```
 
