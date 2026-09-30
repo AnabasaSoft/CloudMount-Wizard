@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"image/color"
 	"io"
+	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -32,6 +34,9 @@ import (
 func main() {
 	minimizedFlag := flag.Bool("minimized", false, "Iniciar minimizado")
 	flag.Parse()
+
+	setupAppLog()
+	log.Printf("CloudMount iniciado (minimizado: %v)", *minimizedFlag)
 
 	myApp := app.NewWithID("com.anabasasoft.cloudmount")
 	myApp.SetIcon(resourceIconPng)
@@ -81,7 +86,7 @@ func main() {
 					wg.Add(1)
 					go func(name string) {
 						defer wg.Done()
-						_, _ = mountRemote(name)
+						_, _ = mountRemote(name) // mountRemote ya deja el resultado en el log
 					}(rName)
 
 					// Pequeña pausa entre inicios
@@ -115,10 +120,38 @@ func main() {
 // mountRemote monta una unidad; en Mega arranca antes el servidor y su WebDAV local
 func mountRemote(name string) (string, error) {
 	if name == "Mega" {
-		_ = mega.EnsureDaemon()
-		_, _ = mega.GetWebDAVURL()
+		if err := mega.EnsureDaemon(); err != nil {
+			log.Printf("Mega: %v", err)
+		}
+		if _, err := mega.GetWebDAVURL(); err != nil {
+			log.Printf("Mega: %v", err)
+		}
 	}
-	return rclone.MountRemote(name)
+	mountPoint, err := rclone.MountRemote(name)
+	if err != nil {
+		log.Printf("Error montando %s: %v", name, err)
+	} else {
+		log.Printf("Montado %s en %s", name, mountPoint)
+	}
+	return mountPoint, err
+}
+
+// setupAppLog envía los eventos de la propia app (montajes, altas, errores...) a
+// cloudmount.log, que es el log "Global" del visor. Los mensajes de rclone de
+// cada unidad van a su propio fichero. Si pasa de 1 MB se guarda como .old.
+func setupAppLog() {
+	path := rclone.GetLogFilePath("")
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return
+	}
+	if info, err := os.Stat(path); err == nil && info.Size() > 1024*1024 {
+		os.Rename(path, path+".old")
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0640)
+	if err != nil {
+		return // Sin fichero, el log sigue saliendo por stderr
+	}
+	log.SetOutput(f)
 }
 
 // installRclone instala rclone y, si todo va bien, pasa directamente al panel
@@ -126,6 +159,9 @@ func installRclone(w fyne.Window) {
 	w.SetContent(container.NewVBox(layout.NewSpacer(), widget.NewLabel("Instalando Rclone..."), widget.NewProgressBarInfinite(), layout.NewSpacer()))
 	go func() {
 		err := system.InstallRclone()
+		if err != nil {
+			log.Printf("Error instalando Rclone: %v", err)
+		}
 		fyne.Do(func() {
 			if system.CheckRclone() {
 				ShowDashboard(w)
@@ -415,6 +451,7 @@ func renderDashboard(w fyne.Window, states []remoteState) {
 		btnUnmount := widget.NewButton("Desmontar", func() {
 			go func() {
 				rclone.UnmountRemote(name)
+				log.Printf("Desmontado %s", name)
 				fyne.Do(func() { ShowDashboard(w) })
 			}()
 		})
@@ -491,7 +528,11 @@ func renderDashboard(w fyne.Window, states []remoteState) {
 						if isMega {
 							mega.Logout()
 						}
-						rclone.DeleteRemote(name)
+						if err := rclone.DeleteRemote(name); err != nil {
+							log.Printf("Error eliminando %s: %v", name, err)
+						} else {
+							log.Printf("Eliminada la unidad %s", name)
+						}
 						fyne.Do(func() { ShowDashboard(w) })
 					}()
 				}
@@ -540,10 +581,11 @@ func ShowCloudSelection(w fyne.Window) {
 		val, _ := configState.Get()
 		if strings.HasPrefix(val, "DONE:") {
 			remoteName := val[5:]
+			log.Printf("Unidad %s creada", remoteName)
 			dialog.ShowConfirm("Exito", "Cuenta '"+remoteName+"' guardada.\nMontar ahora?", func(ok bool) {
 				if ok {
 					go func() {
-						_, err := rclone.MountRemote(remoteName)
+						_, err := mountRemote(remoteName)
 						fyne.Do(func() {
 							ShowDashboard(w)
 							if err != nil {
@@ -556,6 +598,7 @@ func ShowCloudSelection(w fyne.Window) {
 				}
 			}, w)
 		} else if strings.HasPrefix(val, "ERROR:") {
+			log.Printf("Error creando unidad: %s", val[6:])
 			fyne.Do(func() {
 				// Volvemos a la lista: configureOAuth deja la ventana en "Autorizando..." sin botones
 				ShowCloudSelection(w)
@@ -571,6 +614,9 @@ func ShowCloudSelection(w fyne.Window) {
 					w.SetContent(container.NewVBox(layout.NewSpacer(), widget.NewLabel("Instalando MEGAcmd..."), widget.NewProgressBarInfinite(), layout.NewSpacer()))
 					go func() {
 						err := system.InstallMegaCmd()
+						if err != nil {
+							log.Printf("Error instalando MEGAcmd: %v", err)
+						}
 						fyne.Do(func() {
 							if err != nil {
 								ShowCloudSelection(w)
@@ -603,6 +649,7 @@ func ShowCloudSelection(w fyne.Window) {
 				go func() {
 					err := mega.Login(strings.TrimSpace(entryUser.Text), strings.TrimSpace(entryPass.Text), strings.TrimSpace(entry2FA.Text))
 					if err != nil {
+						log.Printf("Error en login de Mega: %v", err)
 						fyne.Do(func() {
 							ShowCloudSelection(w)
 							dialog.ShowError(fmt.Errorf("Login fallo: %v", err), w)
@@ -611,6 +658,7 @@ func ShowCloudSelection(w fyne.Window) {
 					}
 					webdavURL, errUrl := mega.GetWebDAVURL()
 					if errUrl != nil {
+						log.Printf("Error activando WebDAV de Mega: %v", errUrl)
 						fyne.Do(func() {
 							ShowCloudSelection(w)
 							dialog.ShowError(fmt.Errorf("Error puente: %v", errUrl), w)
@@ -624,6 +672,7 @@ func ShowCloudSelection(w fyne.Window) {
 						"vendor": "other",
 					}
 					if err := rclone.CreateConfigWithOpts("Mega", "webdav", opts); err != nil {
+						log.Printf("Error guardando configuracion de Mega: %v", err)
 						fyne.Do(func() {
 							ShowCloudSelection(w)
 							dialog.ShowError(fmt.Errorf("Error guardando configuracion: %v", err), w)
@@ -631,6 +680,7 @@ func ShowCloudSelection(w fyne.Window) {
 						return
 					}
 
+					log.Printf("Mega configurado")
 					fyne.Do(func() {
 						dialog.ShowInformation("Conectado", "Mega configurado.", w)
 						ShowDashboard(w)
@@ -800,6 +850,7 @@ func ShowGlobalSettings(parent fyne.Window) {
 
 	btnSave := widget.NewButtonWithIcon("Guardar Cambios", theme.DocumentSaveIcon(), func() {
 		err := system.SetAutostart(checkAuto.Checked, checkMin.Checked)
+		log.Printf("Autoarranque: activo=%v minimizado=%v (error: %v)", checkAuto.Checked, checkMin.Checked, err)
 		if err != nil {
 			dialog.ShowError(err, w)
 		} else {

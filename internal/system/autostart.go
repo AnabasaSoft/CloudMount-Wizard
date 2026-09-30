@@ -52,10 +52,15 @@ func SetAutostart(enabled bool, minimized bool) error {
 		return nil
 	}
 
-	// Obtener ruta del ejecutable actual
-	exe, err := os.Executable()
-	if err != nil {
-		return err
+	// Obtener ruta del ejecutable actual. En una AppImage, os.Executable() apunta
+	// al punto de montaje temporal (/tmp/.mount_xxx), que desaparece al cerrar;
+	// la ruta real del fichero .AppImage viene en la variable APPIMAGE.
+	exe := os.Getenv("APPIMAGE")
+	if exe == "" {
+		exe, err = os.Executable()
+		if err != nil {
+			return err
+		}
 	}
 
 	// Argumentos: Si quiere minimizado, añadimos el flag
@@ -69,7 +74,7 @@ func SetAutostart(enabled bool, minimized bool) error {
 	icon := "system-file-manager"
 
 	data := desktopConfig{
-		ExecPath: exe,
+		ExecPath: quoteExecArg(exe),
 		Args:     args,
 		IconPath: icon,
 	}
@@ -86,6 +91,16 @@ func SetAutostart(enabled bool, minimized bool) error {
 		return err
 	}
 	return tmpl.Execute(f, data)
+}
+
+// quoteExecArg entrecomilla una ruta para la línea Exec= de un .desktop según la
+// especificación, por si contiene espacios (ej: una AppImage en "~/Mis Apps")
+func quoteExecArg(s string) string {
+	r := strings.NewReplacer(`\`, `\\`, `"`, `\"`, "`", "\\`", `$`, `\$`)
+	quoted := `"` + r.Replace(s) + `"`
+	// Las barras invertidas se escapan otra vez: el .desktop se lee primero como
+	// cadena (\\ -> \) y después se interpretan las comillas
+	return strings.ReplaceAll(quoted, `\`, `\\`)
 }
 
 // IsAutostartEnabled verifica si el archivo existe
