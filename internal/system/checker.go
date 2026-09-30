@@ -2,6 +2,7 @@ package system
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"fyne.io/fyne/v2/lang"
 )
 
 // --- SECCIÓN RCLONE (Restaurada) ---
@@ -46,7 +49,7 @@ func InstallRclone() error {
 	}
 
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("falló instalación de rclone: %s", string(output))
+		return fmt.Errorf("%s:\n%s", lang.L("Installation failed"), strings.TrimSpace(string(output)))
 	}
 	return nil
 }
@@ -80,7 +83,7 @@ func InstallMegaCmd() error {
 	tmpPath := filepath.Join(os.TempDir(), pkg.filename)
 	fmt.Printf("Descargando %s...\n", pkg.url)
 	if err := downloadFile(pkg.url, tmpPath); err != nil {
-		return fmt.Errorf("error descarga: %v", err)
+		return fmt.Errorf("%s: %v", lang.L("Download error"), err)
 	}
 	defer os.Remove(tmpPath) // Limpieza al terminar
 
@@ -235,7 +238,7 @@ func downloadFile(url, filepath string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return fmt.Errorf("servidor devolvió %s", resp.Status)
+		return fmt.Errorf("HTTP %s", resp.Status)
 	}
 
 	out, err := os.Create(filepath)
@@ -266,12 +269,12 @@ func installPackage(family, filepath, keyURL string) error {
 	case "arch":
 		cmd = exec.Command("pkexec", "pacman", "-U", "--noconfirm", filepath)
 	default:
-		return fmt.Errorf("gestor de paquetes no soportado")
+		return errors.New(lang.L("Unsupported package manager"))
 	}
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("falló instalación: %s", string(output))
+		return fmt.Errorf("%s:\n%s", lang.L("Installation failed"), strings.TrimSpace(string(output)))
 	}
 	return nil
 }

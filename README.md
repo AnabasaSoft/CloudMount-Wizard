@@ -6,260 +6,221 @@
 
 **Una interfaz gráfica moderna y elegante para Rclone en Linux**
 
-[![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat-square&logo=go)](https://golang.org)
+[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat-square&logo=go)](https://go.dev)
 [![Fyne](https://img.shields.io/badge/Fyne-v2.7-6366F1?style=flat-square)](https://fyne.io)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 [![Linux](https://img.shields.io/badge/Platform-Linux-FCC624?style=flat-square&logo=linux&logoColor=black)](https://www.linux.org/)
+[![Release](https://img.shields.io/github/v/release/AnabasaSoft/CloudMount-Wizard?style=flat-square)](https://github.com/AnabasaSoft/CloudMount-Wizard/releases/latest)
 
-[Características](#características) • [Instalación](#instalación) • [Uso](#uso) • [Nubes Soportadas](#nubes-soportadas) • [Contribuir](#contribuir)
+[Características](#caracteristicas) • [Instalación](#instalacion) • [Uso](#uso) • [Nubes soportadas](#nubes-soportadas) • [Configuración](#configuracion) • [Contribuir](#contribuir)
 
 ---
 
 <img src="https://raw.githubusercontent.com/AnabasaSoft/CloudMount-Wizard/main/Captura.png" alt="CloudMount Wizard Screenshot" width="100%"/>
 
-
-
 </div>
 
 ---
 
+<a id="descripcion"></a>
 ## 📖 Descripción
 
-**CloudMount Wizard** es una aplicación de escritorio que simplifica la gestión de almacenamiento en la nube bajo Linux. Diseñada con una interfaz gráfica intuitiva usando Fyne, permite montar tus servicios favoritos de almacenamiento en la nube como si fueran discos locales, sin necesidad de usar la terminal.
+**CloudMount Wizard** es una aplicación de escritorio que simplifica la gestión del almacenamiento en la nube en Linux. Con una interfaz gráfica intuitiva hecha con Fyne, permite montar tus servicios de almacenamiento en la nube como si fueran discos locales, sin necesidad de usar la terminal.
 
 Con CloudMount Wizard puedes:
-- ✨ Configurar conexiones de forma visual sin comandos complejos
+- ✨ Configurar conexiones de forma visual, sin comandos complejos
 - 🔄 Montar y desmontar nubes con un solo clic
-- ⚙️ Ajustar opciones avanzadas (modo solo lectura, límites de caché y ancho de banda)
-- 🚀 Habilitar montaje automático al inicio del sistema
-- 📊 Visualizar el espacio usado y disponible en tiempo real
+- ⚙️ Ajustar opciones avanzadas (solo lectura, límites de caché y de ancho de banda)
+- 🚀 Montar tus unidades automáticamente al abrir la aplicación
+- 📊 Ver el espacio usado y disponible de cada nube
 
 ---
 
+<a id="caracteristicas"></a>
 ## ✨ Características
 
-### 🎨 Interfaz Moderna
+### 🎨 Interfaz moderna
 - Tema oscuro elegante y minimalista
-- Sistema tray integrado para acceso rápido
-- Diseño responsive y limpio
+- Icono en la bandeja del sistema para acceso rápido
+- Disponible en **español**, **inglés** y **euskera** (se elige automáticamente según el idioma del sistema o desde *Preferencias*)
 
-### ☁️ Soporte Multi-Nube
-Conecta fácilmente con:
-- **Servicios personales**: Google Drive, Dropbox, OneDrive, pCloud, Box, Yandex Disk
-- **Autohospedados**: Nextcloud, Owncloud, WebDAV genérico
-- **Almacenamiento S3**: AWS, MinIO, Wasabi, DigitalOcean Spaces
-- **Otros**: Mega.nz y más
+### ☁️ Soporte multinube
+- **Servicios personales**: Google Drive, Dropbox, OneDrive, pCloud, Box y Mega.nz
+- **Autohospedados**: Nextcloud, ownCloud y cualquier servidor WebDAV
+- **Almacenamiento S3**: AWS, MinIO, Wasabi y compatibles (DigitalOcean Spaces, etc.)
 
-### 🔧 Funcionalidades Avanzadas
-- **Automontaje**: Configura systemd para montar automáticamente al iniciar sesión
-- **Opciones personalizables**:
-  - Modo solo lectura
-  - Límite de caché en disco
-  - Límite de ancho de banda
-- **Gestión completa**: Renombrar, eliminar y reconfigurar conexiones
-- **Monitoreo de espacio**: Visualización en tiempo real del uso de almacenamiento
+### 🔧 Funcionalidades
+- **Automontaje**: cada unidad puede montarse sola al abrir CloudMount
+- **Arranque con la sesión**: la aplicación puede iniciarse al entrar en el escritorio, también minimizada en la bandeja
+- **Opciones por unidad**: solo lectura, límite de caché en disco y límite de ancho de banda
+- **Espacio en disco**: uso y capacidad de cada nube montada
+- **Visor de logs**: registro en tiempo real de cada unidad y un log global con la actividad de la aplicación
+- **Aviso de nuevas versiones**: CloudMount te avisa cuando hay una release nueva en GitHub, con el enlace para descargarla
 
-### 🛠️ Instalación Automatizada
-- Detecta automáticamente si Rclone está instalado
-- Instalador integrado compatible con:
-  - Arch Linux / Manjaro
-  - Ubuntu / Debian / Linux Mint / Pop!_OS
-  - Fedora / RHEL / CentOS
-  - openSUSE (Leap / Tumbleweed)
+### 🛠️ Instalación asistida
+- Detecta si Rclone está instalado y, si no, lo instala con un clic
+- Para Mega.nz instala automáticamente **MEGAcmd** (el cliente oficial de MEGA)
+- Compatible con:
+  - openSUSE (Tumbleweed, Slowroll, Leap)
+  - Ubuntu / Debian / Linux Mint / Pop!_OS / elementary OS
+  - Fedora
+  - Arch Linux / Manjaro / EndeavourOS
 
 ---
 
+<a id="instalacion"></a>
 ## 📦 Instalación
 
-### 🚀 Instalación Rápida (Recomendada)
-
-Elige el método según tu distribución:
-
-#### Arch Linux / Manjaro (AUR)
-
-> 📌 **Próximamente disponible en AUR**
-
-```bash
-# Con yay (próximamente)
-yay -S cloudmount-wizard
-
-# Con paru (próximamente)
-paru -S cloudmount-wizard
-```
-
-Por ahora, puedes usar el **AppImage** o el **binario universal** (ver abajo).
+Descarga el paquete de tu distribución desde la [última release](https://github.com/AnabasaSoft/CloudMount-Wizard/releases/latest). En los comandos de abajo, cambia `VERSION` por la versión que quieras instalar.
 
 #### Ubuntu / Debian / Linux Mint
 
 ```bash
-# Descargar el paquete .deb desde releases
-wget https://github.com/AnabasaSoft/CloudMount-Wizard/releases/latest/download/cloudmount-wizard_1.0.1_amd64.deb
-
-# Instalar
-sudo dpkg -i cloudmount-wizard_1.0.1_amd64.deb
-
-# Instalar dependencias si es necesario
-sudo apt-get install -f
-
-# Ejecutar desde el menú de aplicaciones o terminal
-cloudmount-wizard
+VERSION=1.3.0
+wget https://github.com/AnabasaSoft/CloudMount-Wizard/releases/download/v${VERSION}/cloudmount-wizard_${VERSION}_amd64.deb
+sudo apt install ./cloudmount-wizard_${VERSION}_amd64.deb
+sudo apt install rclone fuse3
 ```
 
-#### Fedora / RHEL / CentOS
+#### Fedora
 
 ```bash
-# Descargar el paquete .rpm desde releases
-wget https://github.com/AnabasaSoft/CloudMount-Wizard/releases/latest/download/cloudmount-wizard-1.0.1-1.x86_64.rpm
-
-# Instalar
-sudo dnf install cloudmount-wizard-1.0.1-1.x86_64.rpm
-
-# Ejecutar desde el menú de aplicaciones o terminal
-cloudmount-wizard
+VERSION=1.3.0
+sudo dnf install https://github.com/AnabasaSoft/CloudMount-Wizard/releases/download/v${VERSION}/cloudmount-wizard-${VERSION}-1.x86_64.rpm
+sudo dnf install rclone fuse3
 ```
 
 #### openSUSE
 
 ```bash
-# Descargar el paquete .rpm desde releases
-wget https://github.com/AnabasaSoft/CloudMount-Wizard/releases/latest/download/cloudmount-wizard-1.0.1-1.x86_64.rpm
-
-# Instalar
-sudo zypper install cloudmount-wizard-1.0.1-1.x86_64.rpm
-
-# Ejecutar desde el menú de aplicaciones o terminal
-cloudmount-wizard
+VERSION=1.3.0
+wget https://github.com/AnabasaSoft/CloudMount-Wizard/releases/download/v${VERSION}/cloudmount-wizard-${VERSION}-1.x86_64.rpm
+sudo zypper install --allow-unsigned-rpm ./cloudmount-wizard-${VERSION}-1.x86_64.rpm
+sudo zypper install rclone fuse3
 ```
 
-#### AppImage (Cualquier distribución) - Recomendado
+#### Arch Linux / Manjaro
 
-El **AppImage** es la forma más fácil de ejecutar CloudMount Wizard en cualquier distribución Linux sin necesidad de instalación:
+> 📌 **Próximamente en AUR.** Mientras tanto, usa el **AppImage** o el **binario universal**.
+
+#### AppImage (cualquier distribución)
+
+El **AppImage** es la forma más sencilla de probar CloudMount Wizard en cualquier distribución:
 
 ```bash
-# Descargar el AppImage
 wget https://github.com/AnabasaSoft/CloudMount-Wizard/releases/latest/download/CloudMount-Wizard.AppImage
-
-# Hacer ejecutable
 chmod +x CloudMount-Wizard.AppImage
-
-# Ejecutar
 ./CloudMount-Wizard.AppImage
 ```
 
 **Ventajas del AppImage:**
 - ✅ No requiere instalación ni permisos de root
 - ✅ Funciona en cualquier distribución Linux moderna
-- ✅ Incluye todas las dependencias necesarias
-- ✅ Fácil de actualizar (solo reemplaza el archivo)
+- ✅ Fácil de actualizar: solo hay que sustituir el fichero
 
-Opcionalmente, puedes moverlo a un directorio en tu PATH:
-```bash
-mkdir -p ~/.local/bin
-mv CloudMount-Wizard.AppImage ~/.local/bin/cloudmount-wizard
-```
+> Para usar el AppImage necesitas **FUSE** y tener instalados **Rclone** y **fuse3** (la aplicación puede instalar Rclone por ti).
 
-#### Binario Universal (Tar.gz)
+#### Binario universal (tar.gz)
 
 ```bash
-# Descargar el binario comprimido
 wget https://github.com/AnabasaSoft/CloudMount-Wizard/releases/latest/download/cloudmount-linux-amd64.tar.gz
-
-# Extraer
 tar -xzf cloudmount-linux-amd64.tar.gz
-
-# Mover a /usr/local/bin (opcional)
-sudo mv CloudMount-Wizard /usr/local/bin/cloudmount-wizard
-
-# Hacer ejecutable
-sudo chmod +x /usr/local/bin/cloudmount-wizard
-
-# Ejecutar
+sudo install -m 755 CloudMount-Wizard /usr/local/bin/cloudmount-wizard
 cloudmount-wizard
 ```
 
-### 🛠️ Prerequisitos
+<a id="requisitos"></a>
+### 🛠️ Requisitos
 
-Las dependencias se instalan automáticamente con los paquetes .deb, .rpm y AppImage. Si usas el binario tar.gz, necesitarás:
+- **Rclone**: imprescindible. Si no está instalado, la aplicación ofrece instalarlo.
+- **FUSE 3**: necesario para montar las unidades (`fuse3`).
+- **MEGAcmd**: solo para Mega.nz. La aplicación lo instala al conectar tu cuenta.
+- **Bibliotecas gráficas** (solo para el binario tar.gz; normalmente ya están en cualquier escritorio):
 
 ```bash
 # Ubuntu/Debian
-sudo apt install fuse3 libgl1 libxrandr2 libxcursor1 libxinerama1 libxi6
+sudo apt install libgl1 libxrandr2 libxcursor1 libxinerama1 libxi6 libxxf86vm1
 
 # Fedora
-sudo dnf install fuse3 mesa-libGL libXrandr libXcursor libXinerama libXi
+sudo dnf install mesa-libGL libXrandr libXcursor libXinerama libXi libXxf86vm
+
+# openSUSE
+sudo zypper install Mesa-libGL1 libXrandr2 libXcursor1 libXinerama1 libXi6 libXxf86vm1
 
 # Arch Linux
-sudo pacman -S fuse3 libgl libxrandr libxcursor libxinerama libxi
+sudo pacman -S libgl libxrandr libxcursor libxinerama libxi libxxf86vm
 ```
 
+<a id="compilar"></a>
 ### 🔨 Compilar desde el código fuente
 
-```bash
-# Instalar Go (versión 1.21+)
-# Ver: https://golang.org/doc/install
+Necesitas **Go 1.25 o superior** ([instrucciones](https://go.dev/doc/install)) y las bibliotecas de desarrollo de Fyne:
 
-# Instalar dependencias de desarrollo
+```bash
 # Ubuntu/Debian
-sudo apt install gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev fuse3
+sudo apt install gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
 
 # Fedora
-sudo dnf install gcc mesa-libGL-devel libX11-devel libXcursor-devel libXrandr-devel libXinerama-devel libXi-devel libxkbcommon-devel wayland-devel fuse3
+sudo dnf install gcc mesa-libGL-devel libX11-devel libXcursor-devel libXrandr-devel libXinerama-devel libXi-devel libXxf86vm-devel libxkbcommon-devel wayland-devel
+
+# openSUSE
+sudo zypper install gcc Mesa-libGL-devel libX11-devel libXcursor-devel libXrandr-devel libXinerama-devel libXi-devel libXxf86vm-devel libxkbcommon-devel wayland-devel
 
 # Arch Linux
-sudo pacman -S base-devel libgl xorg-server-devel libxkbcommon wayland fuse3
+sudo pacman -S base-devel libgl libxcursor libxrandr libxinerama libxi libxxf86vm libxkbcommon wayland
+```
 
-# Clonar el repositorio
+```bash
 git clone https://github.com/AnabasaSoft/CloudMount-Wizard.git
 cd CloudMount-Wizard
-
-# Compilar
-go build -ldflags "-s -w" -o CloudMount-Wizard ./cmd/cloudmount
-
-# Ejecutar
+go build -ldflags "-s -w -X main.version=1.3.0" -o CloudMount-Wizard ./cmd/cloudmount
 ./CloudMount-Wizard
 ```
 
+> Con `-X main.version=...` la aplicación conoce su versión y puede avisar de actualizaciones. Si lo omites, se considera una compilación de desarrollo y no busca versiones nuevas.
+
 ---
 
+<a id="uso"></a>
 ## 🚀 Uso
 
-### Primera Ejecución
+### Primera ejecución
 
-1. **Verificación de Rclone**: La aplicación verificará automáticamente si Rclone está instalado
-2. **Instalación automática**: Si no está presente, podrás instalarlo con un solo clic
-3. **Dashboard**: Una vez listo, accederás al panel principal de gestión
+1. **Comprobación de Rclone**: la aplicación verifica si Rclone está instalado.
+2. **Instalación automática**: si falta, puedes instalarlo con un clic.
+3. **Panel principal**: una vez listo, accedes al panel con tus unidades.
 
-### Añadir una Nueva Nube
+### Añadir una nube
 
-1. Haz clic en **"Nueva Conexión"**
-2. Selecciona tu proveedor de nube
-3. Sigue el asistente de configuración:
-   - **OAuth** (Drive, Dropbox, OneDrive): Se abrirá tu navegador para autorizar
-   - **Manual** (Nextcloud, WebDAV, Mega): Introduce tus credenciales
-   - **S3**: Configura access key, secret key y endpoint
+1. Pulsa **«Nueva»**.
+2. Elige tu proveedor.
+3. Sigue el asistente:
+   - **OAuth** (Google Drive, Dropbox, OneDrive, pCloud, Box): se abre el navegador para que autorices el acceso.
+   - **Mega.nz**: introduce tu email, tu contraseña y, si lo tienes activado, el código 2FA. Tus credenciales no se guardan en la configuración de Rclone.
+   - **Nextcloud / WebDAV**: introduce la URL del servidor, tu usuario y tu contraseña.
+   - **S3**: elige el proveedor y escribe la access key, la secret key y, si hace falta, el endpoint.
 
-### 🔧 Funcionalidades Avanzadas
+### Panel principal
 
-- **Automontaje**: Configura el inicio automático de la aplicación y el montaje de unidades.
-- **Modo Silencioso**: Opción para iniciar la aplicación minimizada en la bandeja del sistema.
-- **Visor de Logs**: Consola en tiempo real para ver la actividad interna de Rclone y Mega.
-- **Opciones personalizables**:
-  - Modo solo lectura
-  - Límite de caché en disco
-  - Límite de ancho de banda
-- **Gestión completa**: Renombrar, eliminar y reconfigurar conexiones
-- **Monitoreo de espacio**: Visualización en tiempo real del uso de almacenamiento
+Cada unidad muestra su estado (**MONTADO**, **OFF** o **SESIÓN OK** en Mega), el espacio usado y botones para:
+- **Montar** y **desmontar** la unidad
+- **Abrir** la carpeta en el gestor de archivos
+- **Ajustes** de la unidad (⚙️)
+- **Eliminar** la unidad (🗑️)
 
-### Puntos de Montaje
+En la barra superior tienes el **visor de logs**, las **preferencias generales** (⚙️) y el botón **«Nueva»**.
 
-Por defecto, las nubes se montan en:
+### Puntos de montaje
+
+Las nubes se montan en:
 ```
 ~/Nubes/[NombreDeLaNube]
 ```
 
 ---
 
-## ☁️ Nubes Soportadas
+<a id="nubes-soportadas"></a>
+## ☁️ Nubes soportadas
 
 | Proveedor | Tipo | Autenticación |
 |-----------|------|---------------|
@@ -268,100 +229,123 @@ Por defecto, las nubes se montan en:
 | OneDrive | Personal | OAuth2 |
 | pCloud | Personal | OAuth2 |
 | Box | Personal | OAuth2 |
-| Yandex Disk | Personal | OAuth2 |
-| Mega.nz | Personal | Usuario/Contraseña |
+| Mega.nz | Personal | Usuario/Contraseña (vía MEGAcmd) |
 | Nextcloud | Autohospedado | WebDAV |
-| Owncloud | Autohospedado | WebDAV |
-| WebDAV | Genérico | HTTP Basic Auth |
+| ownCloud | Autohospedado | WebDAV (opción «WebDAV») |
+| WebDAV | Genérico | Usuario/Contraseña |
 | Amazon S3 | Almacenamiento | Access/Secret Keys |
 | MinIO | Autohospedado | Access/Secret Keys |
 | Wasabi | Almacenamiento | Access/Secret Keys |
-| DigitalOcean | Almacenamiento | Access/Secret Keys |
+| Otros S3 (DigitalOcean Spaces…) | Almacenamiento | Access/Secret Keys + endpoint |
 
 ---
 
-## ⚙️ Configuración Avanzada
+<a id="configuracion"></a>
+## ⚙️ Configuración
 
-### Opciones por Conexión
+### Ajustes de cada unidad
 
-Cada conexión puede tener configuraciones específicas:
+- **Solo lectura**: evita modificaciones accidentales.
+- **Límite de caché**: controla el espacio en disco local (ej: `10G`).
+- **Ancho de banda**: limita la velocidad de transferencia (ej: `2M`).
+- **Automontaje**: monta la unidad al abrir CloudMount.
 
-- **Modo Solo Lectura**: Previene modificaciones accidentales
-- **Límite de Caché**: Controla el espacio en disco local (ej: `10G`)
-- **Límite de Ancho de Banda**: Restringe la velocidad de transferencia (ej: `2M`)
+Si la unidad está montada, los cambios se aplican al desmontarla y volver a montarla.
 
-### Barra de herramientas
+### Preferencias generales
 
-- **Visor de Logs**: Abre una consola en tiempo real para diagnosticar problemas con Rclone o Mega.
-- **Preferencias Generales**: (Icono ⚙️) Configura el arranque automático de la aplicación y el inicio minimizado (silencioso) en la bandeja del sistema.
+- **Arrancar al iniciar sesión** y **iniciar minimizado** en la bandeja del sistema.
+- **Idioma** de la interfaz: automático, español, inglés o euskera. Se aplica al reiniciar la aplicación.
+- **Versión instalada** y botón para **buscar actualizaciones**.
 
-### Archivos de Configuración
+### Ficheros
 
-- **Rclone**: `~/.config/rclone/rclone.conf`
-- **CloudMount**: `~/.config/cloudmount/settings.json`
-- **Servicios systemd**: `~/.config/systemd/user/rclone-*.service`
+| Qué | Dónde |
+|-----|-------|
+| Configuración de Rclone | `~/.config/rclone/rclone.conf` |
+| Ajustes de CloudMount | `~/.config/cloudmount/settings.json` |
+| Log global de la aplicación | `~/.config/rclone/cloudmount.log` |
+| Log de cada unidad | `~/.config/rclone/cloudmount-[Nombre].log` |
+| Arranque automático | `~/.config/autostart/com.anabasasoft.cloudmount.desktop` |
+
+Los logs de cada unidad rotan al llegar a 5 MB.
 
 ---
 
-## 🗃️ Arquitectura del Proyecto
+<a id="arquitectura"></a>
+## 🗃️ Arquitectura del proyecto
 
 ```
 cloudmount-wizard/
 ├── cmd/
 │   └── cloudmount/
-│       └── main.go           # Punto de entrada, UI principal
+│       ├── main.go           # Punto de entrada e interfaz gráfica
+│       ├── icon.go           # Icono embebido
+│       └── translations/     # Traducciones (es.json, eu.json)
 ├── internal/
+│   ├── mega/
+│   │   └── client.go         # Integración con MEGAcmd
 │   ├── rclone/
-│   │   └── manager.go        # Gestión de Rclone
+│   │   └── manager.go        # Montaje y gestión de Rclone
 │   ├── settings/
 │   │   └── settings.go       # Configuración persistente
-│   └── system/
-│       └── checker.go        # Detección e instalación
-│       └── autostart.go      # Gestión de arranque automático (.desktop)
+│   ├── system/
+│   │   ├── checker.go        # Detección de la distro e instalación de dependencias
+│   │   └── autostart.go      # Arranque automático (.desktop)
+│   └── update/
+│       └── checker.go        # Aviso de nuevas versiones
 └── go.mod
 ```
 
+### Traducciones
+
+Los textos del código están en inglés y se traducen con los ficheros de `cmd/cloudmount/translations/`. Para añadir un idioma, copia `es.json` como `<código>.json` (por ejemplo, `fr.json`), traduce los valores y añade el código a `supportedLanguages` y al selector de idioma de `main.go`.
+
 ---
 
+<a id="contribuir"></a>
 ## 🤝 Contribuir
 
 ¡Las contribuciones son bienvenidas! Si quieres mejorar CloudMount Wizard:
 
-1. Haz un **Fork** del proyecto
-2. Crea una rama para tu característica (`git checkout -b feature/AmazingFeature`)
-3. Realiza tus cambios y haz commit (`git commit -m 'Add some AmazingFeature'`)
-4. Sube los cambios (`git push origin feature/AmazingFeature`)
-5. Abre un **Pull Request**
+1. Haz un **fork** del proyecto
+2. Crea una rama para tu cambio (`git checkout -b feature/MiMejora`)
+3. Haz commit de tus cambios (`git commit -m 'Añade MiMejora'`)
+4. Sube la rama (`git push origin feature/MiMejora`)
+5. Abre un **pull request**
 
-### Áreas de Mejora
+### Áreas de mejora
 
+- [ ] Paquete en AUR
 - [ ] Soporte para más proveedores de nube
 - [ ] Sincronización bidireccional
-- [ ] Cifrado local de datos sensibles
-- [ ] Traducción a otros idiomas
+- [ ] Más idiomas
 - [ ] Indicadores de velocidad de transferencia en tiempo real
 
 ---
 
-## 🐛 Reportar Problemas
+<a id="reportar-problemas"></a>
+## 🐛 Reportar problemas
 
-Si encuentras algún bug o tienes una sugerencia, por favor [abre un issue](https://github.com/anabasasoft/cloudmount-wizard/issues) en GitHub.
+Si encuentras algún fallo o tienes una sugerencia, [abre un issue](https://github.com/AnabasaSoft/CloudMount-Wizard/issues) en GitHub. Si tienes un problema al montar una unidad, adjunta su log (lo encontrarás en el visor de logs).
 
-También puedes contactarnos directamente en: **anabasasoft@gmail.com**
+También puedes escribirnos a: **anabasasoft@gmail.com**
 
 ---
 
+<a id="licencia"></a>
 ## 📄 Licencia
 
-Este proyecto está bajo la licencia MIT. Ver el archivo [LICENSE](LICENSE) para más detalles.
+Este proyecto está bajo la licencia MIT. Consulta el fichero [LICENSE](LICENSE) para más detalles.
 
 ---
 
 ## 🙏 Agradecimientos
 
-- [Rclone](https://rclone.org/) - El motor que hace posible todo
-- [Fyne](https://fyne.io/) - Framework de UI multiplataforma para Go
-- Comunidad Open Source - Por el apoyo y las contribuciones
+- [Rclone](https://rclone.org/): el motor que lo hace todo posible
+- [Fyne](https://fyne.io/): framework de interfaz multiplataforma para Go
+- [MEGAcmd](https://mega.io/cmd): cliente oficial de MEGA
+- La comunidad open source, por su apoyo y sus contribuciones
 
 ---
 

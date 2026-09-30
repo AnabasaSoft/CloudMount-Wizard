@@ -5,12 +5,14 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
+
+	"fyne.io/fyne/v2/lang"
 )
 
 const desktopTemplate = `[Desktop Entry]
 Type=Application
 Name=CloudMount Wizard
-Comment=Montador de nubes automático
+Comment={{.Comment}}
 Exec={{.ExecPath}} {{.Args}}
 Icon={{.IconPath}}
 Terminal=false
@@ -22,6 +24,7 @@ type desktopConfig struct {
 	ExecPath string
 	Args     string
 	IconPath string
+	Comment  string
 }
 
 func getAutostartPath() (string, error) {
@@ -77,6 +80,7 @@ func SetAutostart(enabled bool, minimized bool) error {
 		ExecPath: quoteExecArg(exe),
 		Args:     args,
 		IconPath: icon,
+		Comment:  lang.L("Automatic cloud drive mounter"),
 	}
 
 	// Crear el archivo .desktop

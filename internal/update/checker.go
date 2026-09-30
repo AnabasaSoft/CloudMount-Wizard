@@ -36,7 +36,7 @@ func CheckLatest(currentVersion string) (*Release, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub devolvió %s", resp.Status)
+		return nil, fmt.Errorf("GitHub: %s", resp.Status)
 	}
 
 	var rel Release

@@ -11,6 +11,8 @@ import (
 	"sync"
 	"syscall" // CLAVE: Necesario para desacoplar el proceso (Setsid: true)
 	"time"    // Necesario para esperar el arranque del servidor
+
+	"fyne.io/fyne/v2/lang"
 )
 
 // daemonMu evita que dos llamadas simultáneas lancen dos servidores a la vez
@@ -37,7 +39,7 @@ func EnsureDaemon() error {
 	}
 
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("error iniciando servidor mega: %v", err)
+		return fmt.Errorf("%s: %v", lang.L("Error starting the MEGA server"), err)
 	}
 
 	// Damos unos segundos para que arranque antes de seguir
@@ -57,7 +59,7 @@ func Login(user, pass, code2FA string) error {
 
 	cmd := exec.Command("mega-login", args...)
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("falló mega-login: %s", string(out))
+		return fmt.Errorf("mega-login: %s", strings.TrimSpace(string(out)))
 	}
 	return nil
 }
@@ -68,7 +70,7 @@ func GetWebDAVURL() (string, error) {
 	cmd := exec.Command("mega-webdav", "/")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("error webdav: %s", string(output))
+		return "", fmt.Errorf("mega-webdav: %s", strings.TrimSpace(string(output)))
 	}
 
 	// Buscamos la URL en la respuesta
@@ -78,7 +80,7 @@ func GetWebDAVURL() (string, error) {
 			return word, nil
 		}
 	}
-	return "", fmt.Errorf("no se encontró URL en: %s", outStr)
+	return "", fmt.Errorf("mega-webdav: %s", strings.TrimSpace(outStr))
 }
 
 // GetSpace analiza la salida exacta de mega-df que nos has pasado

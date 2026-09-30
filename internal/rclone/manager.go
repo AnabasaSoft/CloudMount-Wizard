@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -13,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"fyne.io/fyne/v2/lang"
 
 	"github.com/anabasasoft/cloudmount-wizard/internal/settings"
 )
@@ -66,7 +69,7 @@ func MountRemote(remoteName string) (string, error) {
 
 	// Crear carpeta si no existe
 	if err := os.MkdirAll(mountPoint, 0755); err != nil {
-		return "", fmt.Errorf("error mkdir: %v", err)
+		return "", fmt.Errorf("%s: %v", lang.L("Could not create the mount folder"), err)
 	}
 
 	// Configuración de rclone
@@ -100,7 +103,8 @@ func MountRemote(remoteName string) (string, error) {
 	// Los detalles del error quedan en el fichero de log de la unidad.
 	cmd := exec.Command("rclone", args...)
 	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("rclone no pudo montar %s (%v).\nRevisa el log: %s", remoteName, err, GetLogFilePath(remoteName))
+		return "", errors.New(lang.L("rclone could not mount {{.Name}} ({{.Error}}).\nCheck the log: {{.Log}}",
+			map[string]any{"Name": remoteName, "Error": err.Error(), "Log": GetLogFilePath(remoteName)}))
 	}
 
 	return mountPoint, nil
@@ -126,7 +130,7 @@ func CreateConfig(name, provider string) error {
 	cmd := exec.Command("rclone", "config", "create", name, provider)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("error: %s", string(output))
+		return fmt.Errorf("%s:\n%s", lang.L("rclone could not create the configuration"), strings.TrimSpace(string(output)))
 	}
 	return nil
 }
@@ -149,7 +153,7 @@ func CreateConfigWithOpts(name, provider string, opts map[string]string) error {
 	}
 	cmd := exec.Command("rclone", args...)
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("err: %s", string(out))
+		return fmt.Errorf("%s:\n%s", lang.L("rclone could not create the configuration"), strings.TrimSpace(string(out)))
 	}
 	return nil
 }
@@ -160,7 +164,7 @@ func obscurePassword(pass string) (string, error) {
 	cmd.Stdin = strings.NewReader(pass)
 	out, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("error ofuscando la contraseña: %v", err)
+		return "", fmt.Errorf("%s: %v", lang.L("Error obscuring the password"), err)
 	}
 	return strings.TrimSpace(string(out)), nil
 }
@@ -217,7 +221,7 @@ func UnmountRemote(remoteName string) error {
 	}
 	// Si está ocupado, desmontaje "lazy": se completa cuando se libere
 	if out, err := exec.Command("fusermount", "-u", "-z", mountPoint).CombinedOutput(); err != nil {
-		return fmt.Errorf("no se pudo desmontar %s: %s", remoteName, strings.TrimSpace(string(out)))
+		return errors.New(lang.L("Could not unmount {{.Name}}: {{.Output}}", map[string]any{"Name": remoteName, "Output": strings.TrimSpace(string(out))}))
 	}
 	return nil
 }
@@ -227,7 +231,7 @@ func DeleteRemote(remoteName string) error {
 		return err // No borramos la configuración de una unidad que sigue montada
 	}
 	if out, err := exec.Command("rclone", "config", "delete", remoteName).CombinedOutput(); err != nil {
-		return fmt.Errorf("no se pudo eliminar %s de rclone: %s", remoteName, strings.TrimSpace(string(out)))
+		return errors.New(lang.L("Could not delete {{.Name}} from rclone: {{.Output}}", map[string]any{"Name": remoteName, "Output": strings.TrimSpace(string(out))}))
 	}
 	os.Remove(GetMountPath(remoteName)) // Solo borra la carpeta si está vacía
 	os.Remove(GetLogFilePath(remoteName))
