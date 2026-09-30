@@ -21,21 +21,33 @@ func CheckRclone() bool {
 	return err == nil
 }
 
-// InstallRclone intenta instalar rclone automáticamente
+// InstallRclone instala rclone con el gestor de paquetes de la distro.
+// Usa pkexec para pedir la contraseña de forma gráfica (sudo necesitaría una terminal).
+// Si la distro no se reconoce, abre la web de descargas y no devuelve error.
 func InstallRclone() error {
-	switch runtime.GOOS {
-		case "linux", "darwin":
-			// Script oficial de instalación (requiere sudo interno)
-			cmd := exec.Command("sh", "-c", "curl https://rclone.org/install.sh | sudo bash")
-			return cmd.Run()
-		case "windows":
-			if _, err := exec.LookPath("winget"); err == nil {
-				return exec.Command("winget", "install", "Rclone.Rclone").Run()
-			}
-			return openBrowser("https://rclone.org/downloads")
-		default:
-			return openBrowser("https://rclone.org/downloads")
+	const downloadsURL = "https://rclone.org/downloads"
+	if runtime.GOOS != "linux" {
+		return openBrowser(downloadsURL)
 	}
+
+	var cmd *exec.Cmd
+	switch distroFamily(getLinuxDistro()) {
+	case "ubuntu", "debian":
+		cmd = exec.Command("pkexec", "apt-get", "install", "-y", "rclone")
+	case "fedora":
+		cmd = exec.Command("pkexec", "dnf", "install", "-y", "rclone")
+	case "opensuse":
+		cmd = exec.Command("pkexec", "zypper", "--non-interactive", "install", "rclone")
+	case "arch":
+		cmd = exec.Command("pkexec", "pacman", "-S", "--noconfirm", "rclone")
+	default:
+		return openBrowser(downloadsURL)
+	}
+
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("falló instalación de rclone: %s", string(output))
+	}
+	return nil
 }
 
 // --- SECCIÓN MEGACMD (Nueva) ---
@@ -264,14 +276,14 @@ func installPackage(family, filepath, keyURL string) error {
 func openBrowser(url string) error {
 	var err error
 	switch runtime.GOOS {
-		case "linux":
-			err = exec.Command("xdg-open", url).Start()
-		case "windows":
-			err = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
-		case "darwin":
-			err = exec.Command("open", url).Start()
-		default:
-			err = fmt.Errorf("no se puede abrir navegador")
+	case "linux":
+		err = exec.Command("xdg-open", url).Start()
+	case "windows":
+		err = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+	case "darwin":
+		err = exec.Command("open", url).Start()
+	default:
+		err = fmt.Errorf("no se puede abrir navegador")
 	}
 	return err
 }

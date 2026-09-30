@@ -68,16 +68,7 @@ func MountRemote(remoteName string) (string, error) {
 		return "", fmt.Errorf("error mkdir: %v", err)
 	}
 
-	// Si el usuario tiene activado el automontaje por Systemd, usamos el servicio
-	if IsAutomountEnabled(remoteName) {
-		// Usamos 'restart' para asegurar que levanta limpio después del pkill
-		if err := exec.Command("systemctl", "--user", "restart", "rclone-"+remoteName+".service").Run(); err != nil {
-			return "", fmt.Errorf("error al reiniciar el servicio rclone-%s: %v", remoteName, err)
-		}
-		return mountPoint, nil
-	}
-
-	// Configuración manual de rclone
+	// Configuración de rclone
 	opts := settings.GetOptions(remoteName)
 	args := []string{
 		"mount", remoteName + ":", mountPoint,
@@ -85,7 +76,6 @@ func MountRemote(remoteName string) (string, error) {
 		"--vfs-cache-mode", "full",
 		"--volname", remoteName,
 		"--log-level", "INFO",
-		// AQUÍ USAMOS LA FUNCIÓN ACTUALIZADA PARA SEPARAR LOS LOGS
 		"--log-file", GetLogFilePath(remoteName),
 	}
 
@@ -109,63 +99,6 @@ func MountRemote(remoteName string) (string, error) {
 	}
 
 	return mountPoint, nil
-}
-
-func EnableAutomount(remoteName string) error {
-	mountPoint := GetMountPath(remoteName)
-	os.MkdirAll(mountPoint, 0755)
-
-	if IsMounted(mountPoint) {
-		exec.Command("fusermount", "-u", "-z", mountPoint).Run()
-		time.Sleep(1 * time.Second)
-	}
-
-	rcloneBin, err := exec.LookPath("rclone")
-	if err != nil {
-		return fmt.Errorf("no rclone")
-	}
-	fuserBin, err := exec.LookPath("fusermount")
-	if err != nil {
-		fuserBin = "/bin/fusermount"
-	}
-
-	flags := fmt.Sprintf("--vfs-cache-mode full --no-checksum --no-modtime --volname %s --log-level INFO --log-file %s",
-		remoteName, GetLogFilePath(remoteName))
-
-	opts := settings.GetOptions(remoteName)
-	if opts.ReadOnly {
-		flags += " --read-only"
-	}
-	if opts.CacheSize != "" {
-		flags += " --vfs-cache-max-size " + opts.CacheSize
-	}
-	if opts.BwLimit != "" {
-		flags += " --bwlimit " + opts.BwLimit
-	}
-
-	serviceContent := fmt.Sprintf(`[Unit]
-	Description=Automount Rclone %s
-	After=network-online.target
-	Wants=network-online.target
-
-	[Service]
-	Type=notify
-	ExecStartPre=/usr/bin/mkdir -p %s
-	ExecStart=%s mount %s: %s %s
-	ExecStop=%s -u %s
-	Restart=on-failure
-	RestartSec=10
-
-	[Install]
-	WantedBy=default.target
-	`, remoteName, mountPoint, rcloneBin, remoteName, mountPoint, flags, fuserBin, mountPoint)
-
-	path := getServicePath(remoteName)
-	if err := os.WriteFile(path, []byte(serviceContent), 0644); err != nil {
-		return err
-	}
-	exec.Command("systemctl", "--user", "daemon-reload").Run()
-	return exec.Command("systemctl", "--user", "enable", "--now", "rclone-"+remoteName+".service").Run()
 }
 
 func CreateConfig(name, provider string) error {
@@ -232,10 +165,6 @@ func FormatBytes(size int64) string {
 }
 
 func UnmountRemote(remoteName string) error {
-	if IsAutomountEnabled(remoteName) {
-		exec.Command("systemctl", "--user", "stop", "rclone-"+remoteName+".service").Run()
-		return nil
-	}
 	mountPoint := GetMountPath(remoteName)
 	if exec.Command("fusermount", "-u", mountPoint).Run() != nil {
 		exec.Command("fusermount", "-u", "-z", mountPoint).Run()
@@ -243,47 +172,12 @@ func UnmountRemote(remoteName string) error {
 	return nil
 }
 
-func RenameRemote(oldName, newName string) error {
-	if IsAutomountEnabled(oldName) {
-		DisableAutomount(oldName)
-	}
-	UnmountRemote(oldName)
-	configDir, _ := os.UserConfigDir()
-	configPath := filepath.Join(configDir, "rclone", "rclone.conf")
-	content, _ := os.ReadFile(configPath)
-	newContent := strings.Replace(string(content), "["+oldName+"]", "["+newName+"]", 1)
-	os.WriteFile(configPath, []byte(newContent), 0644)
-	os.Rename(GetMountPath(oldName), GetMountPath(newName))
-	return nil
-}
-
 func DeleteRemote(remoteName string) error {
-	DisableAutomount(remoteName)
 	UnmountRemote(remoteName)
 	exec.Command("rclone", "config", "delete", remoteName).Run()
 	os.Remove(GetMountPath(remoteName))
 	os.Remove(GetLogFilePath(remoteName))
 	return settings.DeleteOptions(remoteName)
-}
-
-func getServicePath(remoteName string) string {
-	home, _ := os.UserHomeDir()
-	dir := filepath.Join(home, ".config", "systemd", "user")
-	os.MkdirAll(dir, 0755)
-	return filepath.Join(dir, "rclone-"+remoteName+".service")
-}
-
-func IsAutomountEnabled(remoteName string) bool {
-	return exec.Command("systemctl", "--user", "is-enabled", "rclone-"+remoteName+".service").Run() == nil
-}
-
-func DisableAutomount(remoteName string) error {
-	name := "rclone-" + remoteName + ".service"
-	exec.Command("systemctl", "--user", "stop", name).Run()
-	exec.Command("systemctl", "--user", "disable", name).Run()
-	os.Remove(getServicePath(remoteName))
-	exec.Command("systemctl", "--user", "daemon-reload").Run()
-	return nil
 }
 
 // IsMounted comprueba si path es exactamente un punto de montaje activo.

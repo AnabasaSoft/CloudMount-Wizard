@@ -5,13 +5,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"syscall" // CLAVE: Necesario para desacoplar el proceso (Setsid: true)
-"time"    // Necesario para esperar el arranque del servidor
+	"time"    // Necesario para esperar el arranque del servidor
 )
 
 // daemonMu evita que dos llamadas simultáneas lancen dos servidores a la vez
@@ -128,9 +127,4 @@ func Logout() {
 func IsLoggedIn() bool {
 	err := exec.Command("mega-whoami").Run()
 	return err == nil
-}
-
-func GetMountPath() string {
-	h, _ := os.UserHomeDir()
-	return filepath.Join(h, "Nubes", "Mega")
 }

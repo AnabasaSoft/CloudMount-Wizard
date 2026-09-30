@@ -26,11 +26,6 @@ import (
 	"github.com/anabasasoft/cloudmount-wizard/internal/system"
 )
 
-var (
-	quotaCache = make(map[string]*rclone.Quota)
-	quotaMutex sync.RWMutex
-)
-
 func main() {
 	minimizedFlag := flag.Bool("minimized", false, "Iniciar minimizado")
 	flag.Parse()
@@ -47,11 +42,11 @@ func main() {
 
 	if desk, ok := myApp.(desktop.App); ok {
 		m := fyne.NewMenu("CloudMount",
-				  fyne.NewMenuItem("Mostrar Panel", func() {
-					  myWindow.Show()
-					  myWindow.RequestFocus()
-				  }),
-		    fyne.NewMenuItem("Salir", func() { myApp.Quit() }),
+			fyne.NewMenuItem("Mostrar Panel", func() {
+				myWindow.Show()
+				myWindow.RequestFocus()
+			}),
+			fyne.NewMenuItem("Salir", func() { myApp.Quit() }),
 		)
 		desk.SetSystemTrayMenu(m)
 		desk.SetSystemTrayIcon(resourceIconPng)
@@ -83,15 +78,7 @@ func main() {
 					wg.Add(1)
 					go func(name string) {
 						defer wg.Done()
-						// Preparacion especial para Mega
-						if name == "Mega" {
-							_ = mega.EnsureDaemon()
-							time.Sleep(300 * time.Millisecond)
-							_, _ = mega.GetWebDAVURL()
-						}
-
-						// Montar
-						_, _ = rclone.MountRemote(name)
+						_, _ = mountRemote(name)
 					}(rName)
 
 					// Pequeña pausa entre inicios
@@ -109,11 +96,8 @@ func main() {
 		// Rclone no instalado
 		content := container.NewVBox(
 			widget.NewLabelWithStyle("Rclone no encontrado", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
-					     widget.NewLabel("Se requiere Rclone para usar esta aplicacion."),
-					     widget.NewButton("Instalar Rclone", func() {
-						     // Aqui iria la logica de instalacion
-						     dialog.ShowInformation("Info", "Funcion de instalacion pendiente", myWindow)
-					     }),
+			widget.NewLabel("Se requiere Rclone para usar esta aplicacion."),
+			widget.NewButton("Instalar Rclone", func() { installRclone(myWindow) }),
 		)
 		myWindow.SetContent(container.NewCenter(content))
 	}
@@ -125,9 +109,40 @@ func main() {
 	}
 }
 
-// ShowLogViewer muestra la ventana de logs
+// mountRemote monta una unidad; en Mega arranca antes el servidor y su WebDAV local
+func mountRemote(name string) (string, error) {
+	if name == "Mega" {
+		_ = mega.EnsureDaemon()
+		_, _ = mega.GetWebDAVURL()
+	}
+	return rclone.MountRemote(name)
+}
+
+// installRclone instala rclone y, si todo va bien, pasa directamente al panel
+func installRclone(w fyne.Window) {
+	w.SetContent(container.NewVBox(layout.NewSpacer(), widget.NewLabel("Instalando Rclone..."), widget.NewProgressBarInfinite(), layout.NewSpacer()))
+	go func() {
+		err := system.InstallRclone()
+		fyne.Do(func() {
+			if system.CheckRclone() {
+				ShowDashboard(w)
+				return
+			}
+			content := container.NewVBox(
+				widget.NewLabelWithStyle("Rclone no encontrado", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+				widget.NewLabel("Instala Rclone y vuelve a abrir la aplicacion."),
+				widget.NewButton("Reintentar", func() { installRclone(w) }),
+			)
+			w.SetContent(container.NewCenter(content))
+			if err != nil {
+				dialog.ShowError(err, w)
+			}
+		})
+	}()
+}
+
 // ShowLogViewer muestra la ventana de logs con selector de unidad
-func ShowLogViewer(w fyne.Window) {
+func ShowLogViewer() {
 	logContent := widget.NewMultiLineEntry()
 	logContent.Wrapping = fyne.TextWrapOff
 	logContent.TextStyle = fyne.TextStyle{Monospace: true}
@@ -216,8 +231,8 @@ func ShowLogViewer(w fyne.Window) {
 	// Layout
 	header := container.NewVBox(
 		widget.NewLabelWithStyle("Selecciona Unidad:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-				    combo,
-			     widget.NewSeparator(),
+		combo,
+		widget.NewSeparator(),
 	)
 
 	logWindow.SetContent(container.NewBorder(
@@ -252,7 +267,7 @@ func ShowDashboard(w fyne.Window) {
 	// Cabecera y herramientas globales
 	title := widget.NewLabelWithStyle("Mis Unidades", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	addBtn := widget.NewButtonWithIcon("Nueva", theme.ContentAddIcon(), func() { ShowCloudSelection(w) })
-	logBtn := widget.NewButtonWithIcon("Logs", theme.VisibilityIcon(), func() { ShowLogViewer(w) })
+	logBtn := widget.NewButtonWithIcon("Logs", theme.VisibilityIcon(), ShowLogViewer)
 	configBtn := widget.NewButtonWithIcon("", theme.SettingsIcon(), func() { ShowGlobalSettings(w) })
 
 	listContainer := container.NewVBox()
@@ -318,11 +333,7 @@ func ShowDashboard(w fyne.Window) {
 		// Botones de accion
 		btnMount := widget.NewButton("Montar Disco", func() {
 			go func() {
-				if isMega {
-					mega.EnsureDaemon()
-					_, _ = mega.GetWebDAVURL()
-				}
-				_, err := rclone.MountRemote(name)
+				_, err := mountRemote(name)
 				fyne.Do(func() {
 					ShowDashboard(w)
 					if err != nil {
@@ -371,9 +382,9 @@ func ShowDashboard(w fyne.Window) {
 
 			items := []*widget.FormItem{
 				widget.NewFormItem("Solo Lectura:", checkRead),
-							widget.NewFormItem("Limite Cache:", entryCache),
-							widget.NewFormItem("Ancho Banda:", entryBw),
-							widget.NewFormItem("Automontaje:", checkAutoMount),
+				widget.NewFormItem("Limite Cache:", entryCache),
+				widget.NewFormItem("Ancho Banda:", entryBw),
+				widget.NewFormItem("Automontaje:", checkAutoMount),
 			}
 
 			d := dialog.NewForm("Ajustes "+displayName, "Guardar", "Cancelar", items, func(ok bool) {
@@ -408,9 +419,6 @@ func ShowDashboard(w fyne.Window) {
 			dialog.ShowConfirm("Borrar", msg, func(ok bool) {
 				if ok {
 					go func() {
-						if isMounted {
-							rclone.UnmountRemote(name)
-						}
 						if isMega {
 							mega.Logout()
 						}
@@ -425,14 +433,14 @@ func ShowDashboard(w fyne.Window) {
 		cardContent := container.NewVBox(
 			container.NewHBox(
 				widget.NewIcon(statusIcon),
-					  widget.NewLabelWithStyle(displayName, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-					  layout.NewSpacer(),
-					  widget.NewLabel(statusTxt),
+				widget.NewLabelWithStyle(displayName, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+				layout.NewSpacer(),
+				widget.NewLabel(statusTxt),
 			),
 			widget.NewSeparator(),
-						 container.NewBorder(nil, nil, widget.NewLabelWithData(quotaTxt), nil, widget.NewProgressBarWithData(quotaVal)),
-						 widget.NewSeparator(),
-						 container.NewHBox(btnMount, btnUnmount, btnOpen, layout.NewSpacer(), btnSettings, btnDelete),
+			container.NewBorder(nil, nil, widget.NewLabelWithData(quotaTxt), nil, widget.NewProgressBarWithData(quotaVal)),
+			widget.NewSeparator(),
+			container.NewHBox(btnMount, btnUnmount, btnOpen, layout.NewSpacer(), btnSettings, btnDelete),
 		)
 
 		listContainer.Add(widget.NewCard("", "", cardContent))
@@ -445,7 +453,7 @@ func ShowDashboard(w fyne.Window) {
 	content := container.NewBorder(
 		container.NewVBox(
 			container.NewHBox(title, layout.NewSpacer(), logBtn, configBtn, addBtn),
-				  widget.NewSeparator(),
+			widget.NewSeparator(),
 		),
 		nil, nil, nil,
 		container.NewPadded(container.NewVScroll(listContainer)),
@@ -514,8 +522,8 @@ func ShowCloudSelection(w fyne.Window) {
 
 		d := dialog.NewForm("Conectar Mega", "Login", "Cancelar", []*widget.FormItem{
 			widget.NewFormItem("Email:", entryUser),
-				    widget.NewFormItem("Pass:", entryPass),
-				    widget.NewFormItem("2FA:", entry2FA),
+			widget.NewFormItem("Pass:", entryPass),
+			widget.NewFormItem("2FA:", entry2FA),
 		}, func(ok bool) {
 			if ok {
 				w.SetContent(container.NewVBox(layout.NewSpacer(), widget.NewLabel("Conectando..."), widget.NewProgressBarInfinite(), layout.NewSpacer()))
@@ -586,9 +594,9 @@ func ShowCloudSelection(w fyne.Window) {
 		entryPass := widget.NewPasswordEntry()
 		d := dialog.NewForm(title, "Ok", "Cancel", []*widget.FormItem{
 			widget.NewFormItem("Nombre:", entryName),
-				    widget.NewFormItem("URL:", entryURL),
-				    widget.NewFormItem("User:", entryUser),
-				    widget.NewFormItem("Pass:", entryPass),
+			widget.NewFormItem("URL:", entryURL),
+			widget.NewFormItem("User:", entryUser),
+			widget.NewFormItem("Pass:", entryPass),
 		}, func(ok bool) {
 			if ok {
 				opts := map[string]string{
@@ -621,10 +629,10 @@ func ShowCloudSelection(w fyne.Window) {
 		entryEndpoint := widget.NewEntry()
 		d := dialog.NewForm("Configurar S3", "Ok", "Cancel", []*widget.FormItem{
 			widget.NewFormItem("Nombre:", entryName),
-				    widget.NewFormItem("Prov:", entryProvider),
-				    widget.NewFormItem("Access:", entryAccess),
-				    widget.NewFormItem("Secret:", entrySecret),
-				    widget.NewFormItem("Endpoint:", entryEndpoint),
+			widget.NewFormItem("Prov:", entryProvider),
+			widget.NewFormItem("Access:", entryAccess),
+			widget.NewFormItem("Secret:", entrySecret),
+			widget.NewFormItem("Endpoint:", entryEndpoint),
 		}, func(ok bool) {
 			if ok {
 				opts := map[string]string{
@@ -651,19 +659,19 @@ func ShowCloudSelection(w fyne.Window) {
 
 	cloudList := container.NewVBox(
 		widget.NewLabelWithStyle("Populares", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
-				       widget.NewButtonWithIcon("Mega.nz (Oficial)", theme.UploadIcon(), configureMega),
-				       widget.NewButtonWithIcon("Google Drive", theme.StorageIcon(), func() { configureOAuth("Google Drive", "drive") }),
-				       widget.NewButtonWithIcon("Dropbox", theme.ContentAddIcon(), func() { configureOAuth("Dropbox", "dropbox") }),
-				       widget.NewButtonWithIcon("OneDrive", theme.FolderIcon(), func() { configureOAuth("OneDrive", "onedrive") }),
-				       widget.NewSeparator(),
-				       widget.NewLabelWithStyle("Avanzado", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
-				       widget.NewButtonWithIcon("pCloud", theme.StorageIcon(), func() { configureOAuth("pCloud", "pcloud") }),
-				       widget.NewButtonWithIcon("Box", theme.ContentCopyIcon(), func() { configureOAuth("Box", "box") }),
-				       widget.NewButtonWithIcon("Nextcloud", theme.ComputerIcon(), func() { configureManual("Nextcloud", "webdav") }),
-				       widget.NewButtonWithIcon("WebDAV", theme.FileIcon(), func() { configureManual("WebDAV", "webdav") }),
-				       widget.NewButtonWithIcon("S3 / AWS", theme.SettingsIcon(), configureS3),
-				       widget.NewSeparator(),
-				       widget.NewButtonWithIcon("Volver", theme.CancelIcon(), func() { ShowDashboard(w) }),
+		widget.NewButtonWithIcon("Mega.nz (Oficial)", theme.UploadIcon(), configureMega),
+		widget.NewButtonWithIcon("Google Drive", theme.StorageIcon(), func() { configureOAuth("Google Drive", "drive") }),
+		widget.NewButtonWithIcon("Dropbox", theme.ContentAddIcon(), func() { configureOAuth("Dropbox", "dropbox") }),
+		widget.NewButtonWithIcon("OneDrive", theme.FolderIcon(), func() { configureOAuth("OneDrive", "onedrive") }),
+		widget.NewSeparator(),
+		widget.NewLabelWithStyle("Avanzado", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+		widget.NewButtonWithIcon("pCloud", theme.StorageIcon(), func() { configureOAuth("pCloud", "pcloud") }),
+		widget.NewButtonWithIcon("Box", theme.ContentCopyIcon(), func() { configureOAuth("Box", "box") }),
+		widget.NewButtonWithIcon("Nextcloud", theme.ComputerIcon(), func() { configureManual("Nextcloud", "webdav") }),
+		widget.NewButtonWithIcon("WebDAV", theme.FileIcon(), func() { configureManual("WebDAV", "webdav") }),
+		widget.NewButtonWithIcon("S3 / AWS", theme.SettingsIcon(), configureS3),
+		widget.NewSeparator(),
+		widget.NewButtonWithIcon("Volver", theme.CancelIcon(), func() { ShowDashboard(w) }),
 	)
 
 	w.SetContent(container.NewBorder(nil, nil, nil, nil, container.NewPadded(container.NewVScroll(cloudList))))
@@ -675,18 +683,18 @@ var _ fyne.Theme = (*myTheme)(nil)
 
 func (m myTheme) Color(n fyne.ThemeColorName, v fyne.ThemeVariant) color.Color {
 	switch n {
-		case theme.ColorNameBackground:
-			return color.NRGBA{R: 0x18, G: 0x18, B: 0x18, A: 0xFF}
-		case theme.ColorNameOverlayBackground, theme.ColorNameInputBackground:
-			return color.NRGBA{R: 0x25, G: 0x25, B: 0x25, A: 0xFF}
-		case theme.ColorNameButton:
-			return color.NRGBA{R: 0x30, G: 0x30, B: 0x30, A: 0xFF}
+	case theme.ColorNameBackground:
+		return color.NRGBA{R: 0x18, G: 0x18, B: 0x18, A: 0xFF}
+	case theme.ColorNameOverlayBackground, theme.ColorNameInputBackground:
+		return color.NRGBA{R: 0x25, G: 0x25, B: 0x25, A: 0xFF}
+	case theme.ColorNameButton:
+		return color.NRGBA{R: 0x30, G: 0x30, B: 0x30, A: 0xFF}
 	}
 	return theme.DefaultTheme().Color(n, v)
 }
 func (m myTheme) Icon(n fyne.ThemeIconName) fyne.Resource { return theme.DefaultTheme().Icon(n) }
-func (m myTheme) Font(s fyne.TextStyle) fyne.Resource    { return theme.DefaultTheme().Font(s) }
-func (m myTheme) Size(n fyne.ThemeSizeName) float32      { return theme.DefaultTheme().Size(n) }
+func (m myTheme) Font(s fyne.TextStyle) fyne.Resource     { return theme.DefaultTheme().Font(s) }
+func (m myTheme) Size(n fyne.ThemeSizeName) float32       { return theme.DefaultTheme().Size(n) }
 
 func ShowGlobalSettings(parent fyne.Window) {
 	w := fyne.CurrentApp().NewWindow("Preferencias")
@@ -731,14 +739,14 @@ func ShowGlobalSettings(parent fyne.Window) {
 
 	w.SetContent(container.NewVBox(
 		widget.NewLabelWithStyle("Configuracion del Sistema", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
-				       widget.NewSeparator(),
-				       widget.NewLabel("Comportamiento de arranque:"),
-				       checkAuto,
-				checkMin,
-				widget.NewSeparator(),
-				       lblState,
-				layout.NewSpacer(),
-				       btnSave,
+		widget.NewSeparator(),
+		widget.NewLabel("Comportamiento de arranque:"),
+		checkAuto,
+		checkMin,
+		widget.NewSeparator(),
+		lblState,
+		layout.NewSpacer(),
+		btnSave,
 	))
 
 	w.Show()

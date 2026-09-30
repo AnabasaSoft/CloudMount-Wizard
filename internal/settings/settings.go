@@ -8,9 +8,9 @@ import (
 )
 
 type RemoteOptions struct {
-	ReadOnly  bool   `json:"read_only"`
-	CacheSize string `json:"cache_size"` // Ej: "10G"
-	BwLimit   string `json:"bw_limit"`   // Ej: "2M"
+	ReadOnly     bool   `json:"read_only"`
+	CacheSize    string `json:"cache_size"` // Ej: "10G"
+	BwLimit      string `json:"bw_limit"`   // Ej: "2M"
 	MountOnStart bool   `json:"mount_on_start"`
 }
 
@@ -58,9 +58,6 @@ func DeleteOptions(remoteName string) error {
 	return save()
 }
 
-// Helpers individuales para compatibilidad (opcional, pero útil)
-func GetReadOnly(remoteName string) bool { return GetOptions(remoteName).ReadOnly }
-
 // --- PERSISTENCIA ---
 
 func getConfigPath() string {
@@ -84,6 +81,8 @@ func load() {
 func save() error {
 	path := getConfigPath()
 	data, err := json.MarshalIndent(current, "", "  ")
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	return os.WriteFile(path, data, 0644)
 }
