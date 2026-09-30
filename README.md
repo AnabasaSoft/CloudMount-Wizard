@@ -99,9 +99,17 @@ sudo zypper install --allow-unsigned-rpm ./cloudmount-wizard-${VERSION}-1.x86_64
 sudo zypper install rclone fuse3
 ```
 
-#### Arch Linux / Manjaro
+#### Arch Linux / Manjaro (AUR)
 
-> 📌 **Próximamente en AUR.** Mientras tanto, usa el **AppImage** o el **binario universal**.
+Disponible en AUR como [`cloudmount-wizard-bin`](https://aur.archlinux.org/packages/cloudmount-wizard-bin):
+
+```bash
+# Con yay
+yay -S cloudmount-wizard-bin
+
+# Con paru
+paru -S cloudmount-wizard-bin
+```
 
 #### AppImage (cualquier distribución)
 
@@ -255,7 +263,7 @@ Si la unidad está montada, los cambios se aplican al desmontarla y volver a mon
 ### Preferencias generales
 
 - **Arrancar al iniciar sesión** y **iniciar minimizado** en la bandeja del sistema.
-- **Idioma** de la interfaz: automático, español, inglés o euskera. Se aplica al reiniciar la aplicación.
+- **Idioma** de la interfaz: automático, español, inglés o euskera. Se aplica al momento, sin reiniciar la aplicación.
 - **Versión instalada** y botón para **buscar actualizaciones**.
 
 ### Ficheros
@@ -316,10 +324,11 @@ Los textos del código están en inglés y se traducen con los ficheros de `cmd/
 
 ### Áreas de mejora
 
-- [ ] Paquete en AUR
+- [x] Paquete en AUR
+- [x] Traducción al inglés y al euskera
+- [ ] Más idiomas (¡se agradecen traducciones!)
 - [ ] Soporte para más proveedores de nube
 - [ ] Sincronización bidireccional
-- [ ] Más idiomas
 - [ ] Indicadores de velocidad de transferencia en tiempo real
 
 ---

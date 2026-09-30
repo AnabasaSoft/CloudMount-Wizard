@@ -52,10 +52,18 @@ var translations embed.FS
 // supportedLanguages son los idiomas con traducción completa de la app
 var supportedLanguages = []string{"es", "en", "eu"}
 
-// setupLanguage carga las traducciones. Si el usuario eligió un idioma en
-// Preferencias, lo forzamos con LANGUAGE, que Fyne consulta antes que LANG.
-func setupLanguage(a fyne.App) {
-	code := a.Preferences().String(languageKey)
+// LANGUAGE original de la sesión, para restaurarlo al volver a "Automático"
+var originalLanguage, hasOriginalLanguage = os.LookupEnv("LANGUAGE")
+
+// applyLanguage activa un idioma ("" = el del sistema) sin reiniciar la app.
+// Fyne vuelve a leer LANGUAGE (que manda sobre LANG) cada vez que se cargan
+// traducciones, así que basta con cambiarlo y recargarlas.
+func applyLanguage(code string) {
+	if hasOriginalLanguage {
+		os.Setenv("LANGUAGE", originalLanguage)
+	} else {
+		os.Unsetenv("LANGUAGE")
+	}
 	// SystemLocale devuelve "es-ES": nos quedamos solo con el idioma ("es")
 	systemLang, _, _ := strings.Cut(lang.SystemLocale().String(), "-")
 	if code == "" && !slices.Contains(supportedLanguages, systemLang) {
@@ -71,6 +79,49 @@ func setupLanguage(a fyne.App) {
 	}
 }
 
+// mainWindow es la ventana principal; se repinta al cambiar de idioma
+var mainWindow fyne.Window
+
+// setupTray crea (o recrea, al cambiar de idioma) el menú de la bandeja del sistema
+func setupTray(a fyne.App) {
+	desk, ok := a.(desktop.App)
+	if !ok {
+		return
+	}
+	desk.SetSystemTrayMenu(fyne.NewMenu("CloudMount",
+		fyne.NewMenuItem(lang.L("Show Panel"), func() {
+			mainWindow.Show()
+			mainWindow.RequestFocus()
+		}),
+		fyne.NewMenuItem(lang.L("Quit"), func() { a.Quit() }),
+	))
+	desk.SetSystemTrayIcon(resourceIconPng)
+}
+
+// showRcloneMissing es la pantalla que se ve cuando Rclone no está instalado
+func showRcloneMissing(w fyne.Window) {
+	content := container.NewVBox(
+		widget.NewLabelWithStyle(lang.L("Rclone not found"), fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+		widget.NewLabel(lang.L("Rclone is required to use this application.")),
+		widget.NewButton(lang.L("Install Rclone"), func() { installRclone(w) }),
+	)
+	w.SetContent(container.NewCenter(content))
+}
+
+// refreshUI vuelve a pintar las ventanas abiertas con el idioma actual
+func refreshUI() {
+	setupTray(fyne.CurrentApp())
+	if system.CheckRclone() {
+		ShowDashboard(mainWindow)
+	} else {
+		showRcloneMissing(mainWindow)
+	}
+	if logViewerWindow != nil {
+		logViewerWindow.Close() // Su OnClosed para el bucle de lectura y lo deja a nil
+		ShowLogViewer()
+	}
+}
+
 func main() {
 	minimizedFlag := flag.Bool("minimized", false, "Start minimized")
 	flag.Parse()
@@ -81,22 +132,12 @@ func main() {
 	myApp := app.NewWithID("com.anabasasoft.cloudmount")
 	myApp.SetIcon(resourceIconPng)
 	myApp.Settings().SetTheme(&myTheme{})
-	setupLanguage(myApp)
+	applyLanguage(myApp.Preferences().String(languageKey))
 
 	myWindow := myApp.NewWindow("CloudMount Wizard")
 	myWindow.Resize(fyne.NewSize(850, 650))
-
-	if desk, ok := myApp.(desktop.App); ok {
-		m := fyne.NewMenu("CloudMount",
-			fyne.NewMenuItem(lang.L("Show Panel"), func() {
-				myWindow.Show()
-				myWindow.RequestFocus()
-			}),
-			fyne.NewMenuItem(lang.L("Quit"), func() { myApp.Quit() }),
-		)
-		desk.SetSystemTrayMenu(m)
-		desk.SetSystemTrayIcon(resourceIconPng)
-	}
+	mainWindow = myWindow
+	setupTray(myApp)
 
 	myWindow.SetCloseIntercept(func() { myWindow.Hide() })
 
@@ -146,13 +187,7 @@ func main() {
 			})
 		}()
 	} else {
-		// Rclone no instalado
-		content := container.NewVBox(
-			widget.NewLabelWithStyle(lang.L("Rclone not found"), fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
-			widget.NewLabel(lang.L("Rclone is required to use this application.")),
-			widget.NewButton(lang.L("Install Rclone"), func() { installRclone(myWindow) }),
-		)
-		myWindow.SetContent(container.NewCenter(content))
+		showRcloneMissing(myWindow)
 	}
 
 	go startUpdateChecks(myApp, myWindow)
@@ -316,8 +351,16 @@ func readTail(path string, maxBytes int64) ([]byte, error) {
 	return content, nil
 }
 
+// logViewerWindow es el visor de logs si está abierto (nil si no)
+var logViewerWindow fyne.Window
+
 // ShowLogViewer muestra la ventana de logs con selector de unidad
 func ShowLogViewer() {
+	if logViewerWindow != nil {
+		logViewerWindow.RequestFocus() // Ya abierto: no duplicamos la ventana
+		return
+	}
+
 	logContent := widget.NewMultiLineEntry()
 	logContent.Wrapping = fyne.TextWrapOff
 	logContent.TextStyle = fyne.TextStyle{Monospace: true}
@@ -417,7 +460,11 @@ func ShowLogViewer() {
 	))
 	logWindow.Resize(fyne.NewSize(800, 600))
 
-	logWindow.SetOnClosed(func() { close(stop) })
+	logViewerWindow = logWindow
+	logWindow.SetOnClosed(func() {
+		close(stop)
+		logViewerWindow = nil
+	})
 
 	logWindow.Show()
 
@@ -937,25 +984,30 @@ func (m myTheme) Font(s fyne.TextStyle) fyne.Resource     { return theme.Default
 func (m myTheme) Size(n fyne.ThemeSizeName) float32       { return theme.DefaultTheme().Size(n) }
 
 func ShowGlobalSettings() {
-	w := fyne.CurrentApp().NewWindow(lang.L("Preferences"))
+	w := fyne.CurrentApp().NewWindow("")
 	w.Resize(fyne.NewSize(420, 380))
-
-	lblState := widget.NewLabel(lang.L("Status: unknown"))
-
 	isAutostart := system.IsAutostartEnabled()
+	renderGlobalSettings(w, isAutostart, isAutostart && system.IsAutostartMinimized())
+	w.Show()
+}
+
+// renderGlobalSettings pinta la ventana de preferencias. Recibe el estado de las
+// casillas para conservarlo cuando se repinta al cambiar de idioma.
+func renderGlobalSettings(w fyne.Window, autoStart, minimized bool) {
+	w.SetTitle(lang.L("Preferences"))
+
+	lblState := widget.NewLabel(lang.L("Status: autostart OFF"))
+	if system.IsAutostartEnabled() {
+		lblState.SetText(lang.L("Status: autostart ON"))
+	}
 
 	checkAuto := widget.NewCheck(lang.L("Start at login"), nil)
-	checkAuto.Checked = isAutostart
+	checkAuto.Checked = autoStart
 
 	checkMin := widget.NewCheck(lang.L("Start minimized (silent)"), nil)
-	checkMin.Checked = isAutostart && system.IsAutostartMinimized()
-	checkMin.Disable()
-
-	if isAutostart {
-		checkMin.Enable()
-		lblState.SetText(lang.L("Status: autostart ON"))
-	} else {
-		lblState.SetText(lang.L("Status: autostart OFF"))
+	checkMin.Checked = minimized
+	if !autoStart {
+		checkMin.Disable()
 	}
 
 	checkAuto.OnChanged = func(checked bool) {
@@ -967,27 +1019,31 @@ func ShowGlobalSettings() {
 		}
 	}
 
-	// Idioma de la interfaz: se aplica al reiniciar la app
+	// Idioma de la interfaz: se aplica al momento, sin pulsar Guardar
 	langCodes := []string{"", "es", "en", "eu"}
 	selectLang := widget.NewSelect([]string{lang.L("Automatic (system language)"), "Español", "English", "Euskara"}, nil)
 	currentLang := fyne.CurrentApp().Preferences().String(languageKey)
 	selectLang.SetSelectedIndex(max(slices.Index(langCodes, currentLang), 0))
+	selectLang.OnChanged = func(string) {
+		newLang := langCodes[max(selectLang.SelectedIndex(), 0)]
+		if newLang == currentLang {
+			return
+		}
+		fyne.CurrentApp().Preferences().SetString(languageKey, newLang)
+		log.Printf("Idioma cambiado a %q", newLang)
+		applyLanguage(newLang)
+		refreshUI()
+		renderGlobalSettings(w, checkAuto.Checked, checkMin.Checked)
+	}
 
 	btnSave := widget.NewButtonWithIcon(lang.L("Save Changes"), theme.DocumentSaveIcon(), func() {
-		newLang := langCodes[max(selectLang.SelectedIndex(), 0)]
-		fyne.CurrentApp().Preferences().SetString(languageKey, newLang)
-
 		err := system.SetAutostart(checkAuto.Checked, checkMin.Checked)
-		log.Printf("Autoarranque: activo=%v minimizado=%v (error: %v); idioma: %q", checkAuto.Checked, checkMin.Checked, err, newLang)
+		log.Printf("Autoarranque: activo=%v minimizado=%v (error: %v)", checkAuto.Checked, checkMin.Checked, err)
 		if err != nil {
 			dialog.ShowError(err, w)
 			return
 		}
-		msg := lang.L("Settings saved.")
-		if newLang != currentLang {
-			msg = lang.L("Settings saved. Restart CloudMount to apply the new language.")
-		}
-		dialog.ShowInformation(lang.L("Success"), msg, w)
+		dialog.ShowInformation(lang.L("Success"), lang.L("Settings saved."), w)
 		w.Close()
 	})
 
@@ -1030,6 +1086,4 @@ func ShowGlobalSettings() {
 		layout.NewSpacer(),
 		btnSave,
 	))
-
-	w.Show()
 }
